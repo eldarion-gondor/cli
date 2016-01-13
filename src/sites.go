@@ -97,7 +97,7 @@ func sitesCreateCmd(ctx *cli.Context) {
 	if err := api.Sites.Create(&site); err != nil {
 		fatal(err.Error())
 	}
-	success(fmt.Sprintf("%q site created.", fmt.Sprintf("%s/%s", resourceGroup.Name, site.Name)))
+	success(fmt.Sprintf("%q site created.", fmt.Sprintf("%s/%s", *resourceGroup.Name, *site.Name)))
 }
 
 func sitesDeleteCmd(ctx *cli.Context) {
