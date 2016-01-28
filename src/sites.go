@@ -132,7 +132,7 @@ func sitesEnvCmd(ctx *cli.Context) {
 		for i := range ctx.Args() {
 			arg := ctx.Args()[i]
 			if strings.Contains(arg, "=") {
-				parts := strings.Split(arg, "=")
+				parts := strings.SplitN(arg, "=", 2)
 				envVar := gondor.EnvironmentVariable{
 					Site:  site.URL,
 					Key:   &parts[0],
