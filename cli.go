@@ -820,7 +820,10 @@ func (c *CLI) GetTLSConfig(ctx *cli.Context) *tls.Config {
 		pool = x509.NewCertPool()
 		pool.AddCert(caCert)
 	}
-	return &tls.Config{RootCAs: pool}
+	return &tls.Config{
+		RootCAs:            pool,
+		InsecureSkipVerify: c.Config.Cluster.InsecureSkipVerify,
+	}
 }
 
 func (c *CLI) GetHttpClient(ctx *cli.Context) *http.Client {

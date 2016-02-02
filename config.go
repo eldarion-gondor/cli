@@ -86,6 +86,7 @@ type Cluster struct {
 	Location                 string `json:"location"`
 	CertificateAuthority     string `json:"certificate-authority"`
 	CertificateAuthorityData []byte `json:"certificate-authority-data"`
+	InsecureSkipVerify       bool   `json:"insecure-skip-verify"`
 }
 
 func (cluster *Cluster) GetCertificateAuthority() (*x509.Certificate, error) {
