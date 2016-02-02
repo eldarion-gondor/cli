@@ -9,9 +9,9 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-func hostsListCmd(ctx *cli.Context) {
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+func hostsListCmd(c *CLI, ctx *cli.Context) {
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	hostNames, err := api.HostNames.List(instance.URL)
 	if err != nil {
 		fatal(err.Error())
@@ -27,7 +27,7 @@ func hostsListCmd(ctx *cli.Context) {
 	table.Render()
 }
 
-func hostsCreateCmd(ctx *cli.Context) {
+func hostsCreateCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor hosts create [--instance] <hostname>")
 		fatal(msg)
@@ -36,8 +36,8 @@ func hostsCreateCmd(ctx *cli.Context) {
 		usage("too few arguments")
 	}
 	newHostName := ctx.Args()[0]
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	hostName := gondor.HostName{
 		Instance: instance.URL,
 		Host:     &newHostName,
@@ -48,7 +48,7 @@ func hostsCreateCmd(ctx *cli.Context) {
 	success(fmt.Sprintf("%s host has been created.", *hostName.Host))
 }
 
-func hostsDeleteCmd(ctx *cli.Context) {
+func hostsDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor hosts delete [--instance] <hostname>")
 		fatal(msg)
@@ -57,8 +57,8 @@ func hostsDeleteCmd(ctx *cli.Context) {
 		usage("too few arguments")
 	}
 	newHostName := ctx.Args()[0]
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	hostName := gondor.HostName{
 		Instance: instance.URL,
 		Host:     &newHostName,

@@ -10,9 +10,9 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-func keypairsListCmd(ctx *cli.Context) {
-	api := getAPIClient(ctx)
-	resourceGroup := getResourceGroup(ctx, api)
+func keypairsListCmd(c *CLI, ctx *cli.Context) {
+	api := c.GetAPIClient(ctx)
+	resourceGroup := c.GetResourceGroup(ctx)
 	keypairs, err := api.KeyPairs.List(resourceGroup.URL)
 	if err != nil {
 		fatal(err.Error())
@@ -30,7 +30,7 @@ func keypairsListCmd(ctx *cli.Context) {
 	table.Render()
 }
 
-func keypairsCreateCmd(ctx *cli.Context) {
+func keypairsCreateCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor keypairs create --name=<keypair-name> <private-key-path> <certificate-path>")
 		fatal(msg)
@@ -41,8 +41,8 @@ func keypairsCreateCmd(ctx *cli.Context) {
 	if !ctx.IsSet("name") || ctx.String("name") == "" {
 		usage("--name is required")
 	}
-	api := getAPIClient(ctx)
-	resourceGroup := getResourceGroup(ctx, api)
+	api := c.GetAPIClient(ctx)
+	resourceGroup := c.GetResourceGroup(ctx)
 	name := ctx.String("name")
 	privateKeyPath := ctx.Args()[0]
 	certPath := ctx.Args()[1]
@@ -66,7 +66,7 @@ func keypairsCreateCmd(ctx *cli.Context) {
 	success("keypair created.")
 }
 
-func keypairsAttachCmd(ctx *cli.Context) {
+func keypairsAttachCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor keypairs attach [--instance] --keypair=<keypair-name> --service=<name>")
 		fatal(msg)
@@ -77,13 +77,13 @@ func keypairsAttachCmd(ctx *cli.Context) {
 	if ctx.String("service") == "" {
 		usage("--service is required")
 	}
-	api := getAPIClient(ctx)
-	resourceGroup := getResourceGroup(ctx, api)
+	api := c.GetAPIClient(ctx)
+	resourceGroup := c.GetResourceGroup(ctx)
 	keypair, err := api.KeyPairs.GetByName(ctx.String("keypair"), resourceGroup.URL)
 	if err != nil {
 		fatal(err.Error())
 	}
-	instance := getInstance(ctx, api, nil)
+	instance := c.GetInstance(ctx, nil)
 	service, err := api.Services.Get(*instance.URL, ctx.String("service"))
 	if err != nil {
 		fatal(err.Error())
@@ -99,7 +99,7 @@ func keypairsAttachCmd(ctx *cli.Context) {
 	success("keypair attached.")
 }
 
-func keypairsDetachCmd(ctx *cli.Context) {
+func keypairsDetachCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor keypairs detach [--instance] --service=<name>")
 		fatal(msg)
@@ -107,8 +107,8 @@ func keypairsDetachCmd(ctx *cli.Context) {
 	if ctx.String("service") == "" {
 		usage("--service is required")
 	}
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	service, err := api.Services.Get(*instance.URL, ctx.String("service"))
 	if err != nil {
 		fatal(err.Error())
@@ -121,7 +121,7 @@ func keypairsDetachCmd(ctx *cli.Context) {
 	success("keypair detached.")
 }
 
-func keypairsDeleteCmd(ctx *cli.Context) {
+func keypairsDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor keypairs delete <keypair-name>")
 		fatal(msg)
@@ -129,8 +129,8 @@ func keypairsDeleteCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	resourceGroup := getResourceGroup(ctx, api)
+	api := c.GetAPIClient(ctx)
+	resourceGroup := c.GetResourceGroup(ctx)
 	keypair, err := api.KeyPairs.GetByName(ctx.Args()[0], resourceGroup.URL)
 	if err != nil {
 		fatal(err.Error())

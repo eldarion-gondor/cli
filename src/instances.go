@@ -10,7 +10,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-func instancesCreateCmd(ctx *cli.Context) {
+func instancesCreateCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor instances create [--kind] <label>")
 		fatal(msg)
@@ -18,8 +18,8 @@ func instancesCreateCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	site := getSite(ctx, api)
+	api := c.GetAPIClient(ctx)
+	site := c.GetSite(ctx)
 	kind := ctx.String("kind")
 	instance := gondor.Instance{
 		Site:  site.URL,
@@ -32,9 +32,9 @@ func instancesCreateCmd(ctx *cli.Context) {
 	success(fmt.Sprintf("%s instance has been created.", *instance.Label))
 }
 
-func instancesListCmd(ctx *cli.Context) {
-	api := getAPIClient(ctx)
-	site := getSite(ctx, api)
+func instancesListCmd(c *CLI, ctx *cli.Context) {
+	api := c.GetAPIClient(ctx)
+	site := c.GetSite(ctx)
 	instances, err := api.Instances.List(site.URL)
 	if err != nil {
 		fatal(err.Error())
@@ -51,7 +51,7 @@ func instancesListCmd(ctx *cli.Context) {
 	table.Render()
 }
 
-func instancesDeleteCmd(ctx *cli.Context) {
+func instancesDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor instances delete <label>")
 		fatal(msg)
@@ -59,8 +59,8 @@ func instancesDeleteCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	site := getSite(ctx, api)
+	api := c.GetAPIClient(ctx)
+	site := c.GetSite(ctx)
 	label := ctx.Args()[0]
 	instance, err := api.Instances.Get(*site.URL, label)
 	if err != nil {
@@ -72,9 +72,9 @@ func instancesDeleteCmd(ctx *cli.Context) {
 	success(fmt.Sprintf("%s instance has been deleted.", label))
 }
 
-func instancesEnvCmd(ctx *cli.Context) {
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+func instancesEnvCmd(c *CLI, ctx *cli.Context) {
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	var err error
 	var createMode bool
 	var displayEnvVars, desiredEnvVars []*gondor.EnvironmentVariable

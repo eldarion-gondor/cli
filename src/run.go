@@ -7,7 +7,7 @@ import (
 	"github.com/codegangsta/cli"
 )
 
-func runCmd(ctx *cli.Context) {
+func runCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor run [--instance] <service-name> -- <executable> <arg-or-option>...")
 		fatal(msg)
@@ -15,8 +15,8 @@ func runCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	service, err := api.Services.Get(*instance.URL, ctx.Args()[0])
 	if err != nil {
 		fatal(err.Error())
@@ -28,8 +28,8 @@ func runCmd(ctx *cli.Context) {
 	re := remoteExec{
 		endpoint:      endpoint,
 		enableTty:     true,
-		httpClient:    getHttpClient(ctx),
-		tlsConfig:     getTLSConfig(ctx),
+		httpClient:    c.GetHttpClient(ctx),
+		tlsConfig:     c.GetTLSConfig(ctx),
 		showAttaching: true,
 	}
 	exitCode, err := re.execute()

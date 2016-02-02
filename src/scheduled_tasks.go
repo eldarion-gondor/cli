@@ -10,9 +10,9 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-func scheduledTasksListCmd(ctx *cli.Context) {
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+func scheduledTasksListCmd(c *CLI, ctx *cli.Context) {
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	scheduledTasks, err := api.ScheduledTasks.List(&*instance.URL)
 	if err != nil {
 		fatal(err.Error())
@@ -31,7 +31,7 @@ func scheduledTasksListCmd(ctx *cli.Context) {
 	table.Render()
 }
 
-func scheduledTasksCreateCmd(ctx *cli.Context) {
+func scheduledTasksCreateCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor scheduled-tasks create [--instance,--timezone] --name --schedule -- <executable> <arg-or-option>...")
 		fatal(msg)
@@ -45,8 +45,8 @@ func scheduledTasksCreateCmd(ctx *cli.Context) {
 	if ctx.String("schedule") == "" {
 		usage("--schedule not defined")
 	}
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	name := ctx.String("name")
 	schedule := ctx.String("schedule")
 	timezone := ctx.String("timezone")
@@ -64,7 +64,7 @@ func scheduledTasksCreateCmd(ctx *cli.Context) {
 	success(fmt.Sprintf("%s scheduled task has been created.", *scheduledTask.Name))
 }
 
-func scheduledTasksDeleteCmd(ctx *cli.Context) {
+func scheduledTasksDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor scheduled-tasks delete <name>")
 		fatal(msg)
@@ -72,8 +72,8 @@ func scheduledTasksDeleteCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	name := ctx.Args()[0]
 	if err := api.ScheduledTasks.DeleteByName(*instance.URL, name); err != nil {
 		fatal(err.Error())

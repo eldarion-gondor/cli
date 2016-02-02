@@ -7,8 +7,8 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-func resourceGroupListCmd(ctx *cli.Context) {
-	api := getAPIClient(ctx)
+func resourceGroupListCmd(c *CLI, ctx *cli.Context) {
+	api := c.GetAPIClient(ctx)
 	resourceGroups, err := api.ResourceGroups.List()
 	if err != nil {
 		fatal(err.Error())

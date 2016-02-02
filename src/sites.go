@@ -13,9 +13,9 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-func sitesListCmd(ctx *cli.Context) {
-	api := getAPIClient(ctx)
-	resourceGroup := getResourceGroup(ctx, api)
+func sitesListCmd(c *CLI, ctx *cli.Context) {
+	api := c.GetAPIClient(ctx)
+	resourceGroup := c.GetResourceGroup(ctx)
 
 	sites, err := api.Sites.List(&*resourceGroup.URL)
 	if err != nil {
@@ -33,12 +33,12 @@ func sitesListCmd(ctx *cli.Context) {
 	table.Render()
 }
 
-func sitesInitCmd(ctx *cli.Context) {
+func sitesInitCmd(c *CLI, ctx *cli.Context) {
 	if _, err := os.Stat(configFilename); !os.IsNotExist(err) {
 		fatal("site already initialized")
 	}
-	api := getAPIClient(ctx)
-	resourceGroup := getResourceGroup(ctx, api)
+	api := c.GetAPIClient(ctx)
+	resourceGroup := c.GetResourceGroup(ctx)
 	name := ctx.String("name")
 	site := gondor.Site{
 		ResourceGroup: resourceGroup.URL,
@@ -83,13 +83,13 @@ func sitesInitCmd(ctx *cli.Context) {
 	fmt.Printf("Wrote %s to your current directory.\nYour site is ready to be deployed. To deploy, run:\n\n\tg3a deploy\n\nDon't forget to commit %s before deploying.\n", configFilename, configFilename)
 }
 
-func sitesCreateCmd(ctx *cli.Context) {
+func sitesCreateCmd(c *CLI, ctx *cli.Context) {
 	var name string
 	if len(ctx.Args()) == 1 {
 		name = ctx.Args()[0]
 	}
-	api := getAPIClient(ctx)
-	resourceGroup := getResourceGroup(ctx, api)
+	api := c.GetAPIClient(ctx)
+	resourceGroup := c.GetResourceGroup(ctx)
 	site := gondor.Site{
 		ResourceGroup: resourceGroup.URL,
 		Name:          &name,
@@ -100,7 +100,7 @@ func sitesCreateCmd(ctx *cli.Context) {
 	success(fmt.Sprintf("%q site created.", fmt.Sprintf("%s/%s", *resourceGroup.Name, *site.Name)))
 }
 
-func sitesDeleteCmd(ctx *cli.Context) {
+func sitesDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor sites delete <site-name>")
 		fatal(msg)
@@ -108,8 +108,8 @@ func sitesDeleteCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	resourceGroup := getResourceGroup(ctx, api)
+	api := c.GetAPIClient(ctx)
+	resourceGroup := c.GetResourceGroup(ctx)
 	var site *gondor.Site
 	site, err := api.Sites.Get(ctx.Args()[0], &*resourceGroup.URL)
 	if err != nil {
@@ -121,9 +121,9 @@ func sitesDeleteCmd(ctx *cli.Context) {
 	success(fmt.Sprintf("%s site has been deleted.", *site.Name))
 }
 
-func sitesEnvCmd(ctx *cli.Context) {
-	api := getAPIClient(ctx)
-	site := getSite(ctx, api)
+func sitesEnvCmd(c *CLI, ctx *cli.Context) {
+	api := c.GetAPIClient(ctx)
+	site := c.GetSite(ctx)
 	var err error
 	var createMode bool
 	var displayEnvVars, desiredEnvVars []*gondor.EnvironmentVariable
@@ -161,9 +161,8 @@ func sitesEnvCmd(ctx *cli.Context) {
 	}
 }
 
-func sitesUsersListCmd(ctx *cli.Context) {
-	api := getAPIClient(ctx)
-	site := getSite(ctx, api)
+func sitesUsersListCmd(c *CLI, ctx *cli.Context) {
+	site := c.GetSite(ctx)
 	users, err := site.GetUsers()
 	if err != nil {
 		fatal(err.Error())
@@ -180,7 +179,7 @@ func sitesUsersListCmd(ctx *cli.Context) {
 	table.Render()
 }
 
-func sitesUsersAddCmd(ctx *cli.Context) {
+func sitesUsersAddCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor sites users add [--role=dev] <email>")
 		fatal(msg)
@@ -188,8 +187,7 @@ func sitesUsersAddCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	site := getSite(ctx, api)
+	site := c.GetSite(ctx)
 	email := ctx.Args()[0]
 	if err := site.AddUser(email, ctx.String("role")); err != nil {
 		fatal(err.Error())

@@ -14,12 +14,12 @@ import (
 	"github.com/pivotal-golang/bytefmt"
 )
 
-func deployCmd(ctx *cli.Context) {
+func deployCmd(c *CLI, ctx *cli.Context) {
 	// 0. prepare API
 	var source string
-	api := getAPIClient(ctx)
-	site := getSite(ctx, api)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	site := c.GetSite(ctx)
+	instance := c.GetInstance(ctx, nil)
 	buildLabel := fmt.Sprintf("%s-%%s", filepath.Base(filepath.Dir(siteCfg.filename)))
 	if ctx.Args().First() != "" {
 		source = ctx.Args().First()
@@ -115,8 +115,8 @@ func deployCmd(ctx *cli.Context) {
 	re := remoteExec{
 		endpoint:   endpoint,
 		enableTty:  false,
-		httpClient: getHttpClient(ctx),
-		tlsConfig:  getTLSConfig(ctx),
+		httpClient: c.GetHttpClient(ctx),
+		tlsConfig:  c.GetTLSConfig(ctx),
 		callback: func(ok bool, err error) {
 			if err != nil {
 				fmt.Println("error")

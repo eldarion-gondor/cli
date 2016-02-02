@@ -8,15 +8,15 @@ import (
 	"github.com/inconshreveable/go-update"
 )
 
-func upgradeCmd(ctx *cli.Context) {
-	newVersion, err := checkForUpgrade(app.Version)
+func upgradeCmd(c *CLI, ctx *cli.Context) {
+	newVersion, err := c.CheckForUpgrade()
 	if err != nil {
 		fmt.Printf(errize(fmt.Sprintf(
 			"Failed checking for upgrade: %s\n",
 			err.Error(),
 		)))
 	}
-	if newVersion != nil && !strings.Contains(app.Version, "-dev") {
+	if newVersion != nil && !strings.Contains(c.Version, "-dev") {
 		err, _ := update.New().FromUrl(newVersion.DownloadURL)
 		if err != nil {
 			fatal(err.Error())

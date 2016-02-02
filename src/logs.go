@@ -12,13 +12,13 @@ import (
 var blue func(string) string = ansi.ColorFunc("blue+b")
 var red func(string) string = ansi.ColorFunc("red+b")
 
-func logsCmd(ctx *cli.Context) {
+func logsCmd(c *CLI, ctx *cli.Context) {
 	var err error
 	var instance *gondor.Instance
 	var service *gondor.Service
 
-	api := getAPIClient(ctx)
-	instance = getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance = c.GetInstance(ctx, nil)
 
 	if len(ctx.Args()) == 1 {
 		service, err = api.Services.Get(*instance.URL, ctx.Args()[0])

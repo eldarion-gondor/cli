@@ -11,7 +11,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-func servicesCreateCmd(ctx *cli.Context) {
+func servicesCreateCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor services create [--name,--version,--instance] <service-kind>")
 		fatal(msg)
@@ -19,8 +19,8 @@ func servicesCreateCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	name := ctx.String("name")
 	service := gondor.Service{
 		Instance: instance.URL,
@@ -37,9 +37,9 @@ func servicesCreateCmd(ctx *cli.Context) {
 	success(fmt.Sprintf("%s service has been created.", *service.Kind))
 }
 
-func servicesListCmd(ctx *cli.Context) {
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+func servicesListCmd(c *CLI, ctx *cli.Context) {
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	services, err := api.Services.List(&*instance.URL)
 	if err != nil {
 		fatal(err.Error())
@@ -63,7 +63,7 @@ func servicesListCmd(ctx *cli.Context) {
 	table.Render()
 }
 
-func servicesDeleteCmd(ctx *cli.Context) {
+func servicesDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor services delete <name>")
 		fatal(msg)
@@ -71,8 +71,8 @@ func servicesDeleteCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	name := ctx.Args()[0]
 	service, err := api.Services.Get(*instance.URL, name)
 	if err != nil {
@@ -84,7 +84,7 @@ func servicesDeleteCmd(ctx *cli.Context) {
 	success(fmt.Sprintf("%s service has been deleted.", name))
 }
 
-func servicesEnvCmd(ctx *cli.Context) {
+func servicesEnvCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor services env <name>")
 		fatal(msg)
@@ -92,8 +92,8 @@ func servicesEnvCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	name := ctx.Args()[0]
 	service, err := api.Services.Get(*instance.URL, name)
 	if err != nil {
@@ -132,7 +132,7 @@ func servicesEnvCmd(ctx *cli.Context) {
 	}
 }
 
-func servicesScaleCmd(ctx *cli.Context) {
+func servicesScaleCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor services scale --replicas=N <name>")
 		fatal(msg)
@@ -140,8 +140,8 @@ func servicesScaleCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	name := ctx.Args()[0]
 	replicas := ctx.Int("replicas")
 	service, err := api.Services.Get(*instance.URL, name)
@@ -154,7 +154,7 @@ func servicesScaleCmd(ctx *cli.Context) {
 	success(fmt.Sprintf("%s service has been scaled to %d replicas.", name, replicas))
 }
 
-func servicesRestartCmd(ctx *cli.Context) {
+func servicesRestartCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
 		fmt.Println("Usage: gondor services restart <name>")
 		fatal(msg)
@@ -162,8 +162,8 @@ func servicesRestartCmd(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 {
 		usage("too few arguments")
 	}
-	api := getAPIClient(ctx)
-	instance := getInstance(ctx, api, nil)
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
 	name := ctx.Args()[0]
 	service, err := api.Services.Get(*instance.URL, name)
 	if err != nil {

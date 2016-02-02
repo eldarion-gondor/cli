@@ -7,15 +7,11 @@ import (
 	"github.com/codegangsta/cli"
 )
 
-func isAuthenticated() bool {
-	return gcfg.loaded && gcfg.Client.Auth.AccessToken != ""
-}
-
-func loginCmd(ctx *cli.Context) {
-	if isAuthenticated() {
-		fatal(fmt.Sprintf("you are already logged in as %s. To log out run `gondor logout`", gcfg.Client.Auth.Username))
+func loginCmd(c *CLI, ctx *cli.Context) {
+	if c.IsAuthenticated() {
+		fatal(fmt.Sprintf("you are already logged in as %s. To log out run `%s logout`", c.Config.Identity.Username, c.Name))
 	}
-	api := getAPIClient(ctx)
+	api := c.GetAPIClient(ctx)
 	// ask for username
 	var username string
 	fmt.Printf("Username: ")
@@ -34,11 +30,11 @@ func loginCmd(ctx *cli.Context) {
 	success(fmt.Sprintf("logged in as %s", username))
 }
 
-func logoutCmd(ctx *cli.Context) {
-	if !isAuthenticated() {
+func logoutCmd(c *CLI, ctx *cli.Context) {
+	if !c.IsAuthenticated() {
 		fatal("you are already logged out.")
 	}
-	api := getAPIClient(ctx)
+	api := c.GetAPIClient(ctx)
 	if err := api.RevokeAccess(); err != nil {
 		fatal(err.Error())
 	}
