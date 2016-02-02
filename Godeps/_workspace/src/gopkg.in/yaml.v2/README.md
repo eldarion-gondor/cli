@@ -49,7 +49,7 @@ Example
 -------
 
 ```Go
-package main
+package gondorcli
 
 import (
         "fmt"

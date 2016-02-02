@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // Command server is a test server for the Autobahn WebSockets Test Suite.
-package main
+package gondorcli
 
 import (
 	"errors"

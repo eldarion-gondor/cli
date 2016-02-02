@@ -28,7 +28,7 @@ export PATH=$PATH:$GOPATH/bin
 One of the philosophies behind cli.go is that an API should be playful and full of discovery. So a cli.go app can be as little as one line of code in `main()`. 
 
 ``` go
-package main
+package gondorcli
 
 import (
   "os"
@@ -43,7 +43,7 @@ func main() {
 This app will run and show help text, but is not very useful. Let's give an action to execute and some help documentation:
 
 ``` go
-package main
+package gondorcli
 
 import (
   "os"
@@ -71,7 +71,7 @@ Being a programmer can be a lonely job. Thankfully by the power of automation th
 Start by creating a directory named `greet`, and within it, add a file, `greet.go` with the following code in it:
 
 ``` go
-package main
+package gondorcli
 
 import (
   "os"

@@ -1,13 +1,11 @@
 package main
 
-import "github.com/eldarion-gondor/gondor-go"
-
-type ClusterMap map[string]*gondor.Config
+import "github.com/eldarion-gondor/cli/lib"
 
 var version string
 
 func main() {
-	cli := CLI{
+	cli := gondorcli.CLI{
 		Name:    "gondor",
 		Version: version,
 		Author:  "Eldarion, Inc.",

@@ -9,7 +9,7 @@ Pty is a Go package for using unix pseudo-terminals.
 ## Example
 
 ```go
-package main
+package gondorcli
 
 import (
 	"github.com/kr/pty"

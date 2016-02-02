@@ -4,7 +4,7 @@ piper is a small library to aide in running a process locally, but actually run 
 
 Here is an example of its usage in a tool used on Gondor:
 
-	package main
+	package gondorcli
 
 	import (
 		"flag"
