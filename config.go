@@ -2,6 +2,7 @@ package gondorcli
 
 import (
 	"bytes"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -81,8 +82,26 @@ type CloudIdentityProvider struct {
 }
 
 type Cluster struct {
-	Name     string `json:"name"`
-	Location string `json:"location"`
+	Name                     string `json:"name"`
+	Location                 string `json:"location"`
+	CertificateAuthority     string `json:"certificate-authority"`
+	CertificateAuthorityData []byte `json:"certificate-authority-data"`
+}
+
+func (cluster *Cluster) GetCertificateAuthority() (*x509.Certificate, error) {
+	var caData []byte
+	if cluster.CertificateAuthority != "" {
+		var err error
+		caData, err = ioutil.ReadFile(cluster.CertificateAuthority)
+		if err != nil {
+			return nil, err
+		}
+	} else if cluster.CertificateAuthorityData != nil {
+		caData = cluster.CertificateAuthorityData
+	} else {
+		return nil, nil
+	}
+	return x509.ParseCertificate(caData)
 }
 
 type GlobalConfig struct {
