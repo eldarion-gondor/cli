@@ -37,6 +37,10 @@ type CLI struct {
 	api *gondor.Client
 }
 
+func (c *CLI) Prepare() {
+	c.Config = &GlobalConfig{}
+}
+
 func (c *CLI) cmd(cmdFunc func(*CLI, *cli.Context)) func(*cli.Context) {
 	return func(ctx *cli.Context) {
 		configPath, err := homedir.Expand("~/.config/gondor")
