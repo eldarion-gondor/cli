@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/codegangsta/cli"
 	"github.com/eldarion-gondor/gondor-go"
@@ -312,7 +313,7 @@ type SiteConfig struct {
 
 	instances map[string]string
 
-	loaded   bool
+	once     sync.Once
 	filename string
 	vcs      VCSMetadata
 }
@@ -343,14 +344,15 @@ func LoadSiteConfigFromFile(filename string, dst interface{}) error {
 }
 
 func LoadSiteConfig() error {
-	if !siteCfg.loaded {
+	var err error
+	siteCfg.once.Do(func() {
 		filename, err := FindSiteConfig()
 		if err != nil {
-			return err
+			return
 		}
 		siteCfg.filename = filename
 		if err := LoadSiteConfigFromFile(filename, &siteCfg); err != nil {
-			return err
+			return
 		}
 		// git metadata
 		var branch string
@@ -375,9 +377,8 @@ func LoadSiteConfig() error {
 		for branch := range siteCfg.Branches {
 			siteCfg.instances[siteCfg.Branches[branch]] = branch
 		}
-		siteCfg.loaded = true
-	}
-	return nil
+	})
+	return err
 }
 
 func MustLoadSiteConfig() {
