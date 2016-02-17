@@ -343,38 +343,40 @@ func LoadSiteConfigFromFile(filename string, dst interface{}) error {
 }
 
 func LoadSiteConfig() error {
-	filename, err := FindSiteConfig()
-	if err != nil {
-		return err
-	}
-	siteCfg.filename = filename
-	if err := LoadSiteConfigFromFile(filename, &siteCfg); err != nil {
-		return err
-	}
-	// git metadata
-	var branch string
-	output, err := exec.Command("git", "symbolic-ref", "HEAD").Output()
-	if err == nil {
-		bits := strings.Split(strings.TrimSpace(string(output)), "/")
-		if len(bits) == 3 {
-			branch = bits[2]
+	if !siteCfg.loaded {
+		filename, err := FindSiteConfig()
+		if err != nil {
+			return err
 		}
+		siteCfg.filename = filename
+		if err := LoadSiteConfigFromFile(filename, &siteCfg); err != nil {
+			return err
+		}
+		// git metadata
+		var branch string
+		output, err := exec.Command("git", "symbolic-ref", "HEAD").Output()
+		if err == nil {
+			bits := strings.Split(strings.TrimSpace(string(output)), "/")
+			if len(bits) == 3 {
+				branch = bits[2]
+			}
+		}
+		var commit string
+		output, err = exec.Command("git", "rev-parse", branch).Output()
+		if err == nil {
+			commit = strings.TrimSpace(string(output))
+		}
+		siteCfg.vcs = VCSMetadata{
+			Branch: branch,
+			Commit: commit,
+		}
+		// reverse the branches mapping
+		siteCfg.instances = make(map[string]string)
+		for branch := range siteCfg.Branches {
+			siteCfg.instances[siteCfg.Branches[branch]] = branch
+		}
+		siteCfg.loaded = true
 	}
-	var commit string
-	output, err = exec.Command("git", "rev-parse", branch).Output()
-	if err == nil {
-		commit = strings.TrimSpace(string(output))
-	}
-	siteCfg.vcs = VCSMetadata{
-		Branch: branch,
-		Commit: commit,
-	}
-	// reverse the branches mapping
-	siteCfg.instances = make(map[string]string)
-	for branch := range siteCfg.Branches {
-		siteCfg.instances[siteCfg.Branches[branch]] = branch
-	}
-	siteCfg.loaded = true
 	return nil
 }
 
