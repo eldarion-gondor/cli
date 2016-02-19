@@ -5,6 +5,7 @@
 ### Bug fixes
 
 * fixed error handling when loading global and site configuration
+* global config learned to create ~/.config when it does not exist
 
 ## 0.8.0
 

@@ -163,7 +163,7 @@ func LoadGlobalConfig(c *CLI, ctx *cli.Context, root string) error {
 	c.Config.once.Do(func() {
 		// create config directories if they do not exist
 		if _, err := os.Stat(root); os.IsNotExist(err) {
-			if err := os.Mkdir(root, 0700); err != nil {
+			if err := os.MkdirAll(root, 0700); err != nil {
 				rerr = fmt.Errorf("failed to create %s: %s", root, err)
 				return
 			}
