@@ -264,13 +264,17 @@ func (p *clientConfigPersister) Persist(config *gondor.Config) error {
 		}
 	}
 	m := make(map[string]*Identity)
-	for i := range p.cfg.Identities {
-		if p.cfg.Identities[i].Provider == p.cfg.Cloud.Identity.Location {
-			if p.cfg.Identity != nil {
-				m[p.cfg.Cloud.Identity.Location] = p.cfg.Identity
+	if len(p.cfg.Identities) == 0 && p.cfg.Identity != nil {
+		m[p.cfg.Cloud.Identity.Location] = p.cfg.Identity
+	} else {
+		for i := range p.cfg.Identities {
+			if p.cfg.Identities[i].Provider == p.cfg.Cloud.Identity.Location {
+				if p.cfg.Identity != nil {
+					m[p.cfg.Identities[i].Provider] = p.cfg.Identity
+				}
+			} else {
+				m[p.cfg.Identities[i].Provider] = p.cfg.Identities[i]
 			}
-		} else {
-			m[p.cfg.Identities[i].Provider] = p.cfg.Identities[i]
 		}
 	}
 	var identities []*Identity
@@ -300,7 +304,7 @@ func (cfg *GlobalConfig) GetClientConfig() *gondor.Config {
 
 func (cfg *GlobalConfig) SaveIdentities() error {
 	c := struct {
-		Identities []*Identity `json:"identities"`
+		Identities []*Identity `json:"identities,omitempty"`
 	}{
 		Identities: cfg.Identities,
 	}
