@@ -29,7 +29,7 @@ func hostsListCmd(c *CLI, ctx *cli.Context) {
 
 func hostsCreateCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor hosts create [--instance] <hostname>")
+		fmt.Printf("Usage: %s hosts create [--instance] <hostname>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {
@@ -50,7 +50,7 @@ func hostsCreateCmd(c *CLI, ctx *cli.Context) {
 
 func hostsDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor hosts delete [--instance] <hostname>")
+		fmt.Printf("Usage: %s hosts delete [--instance] <hostname>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {

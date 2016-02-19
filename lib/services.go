@@ -13,7 +13,7 @@ import (
 
 func servicesCreateCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor services create [--name,--version,--instance] <service-kind>")
+		fmt.Printf("Usage: %s services create [--name,--version,--instance] <service-kind>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {
@@ -65,7 +65,7 @@ func servicesListCmd(c *CLI, ctx *cli.Context) {
 
 func servicesDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor services delete <name>")
+		fmt.Printf("Usage: %s services delete <name>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {
@@ -86,7 +86,7 @@ func servicesDeleteCmd(c *CLI, ctx *cli.Context) {
 
 func servicesEnvCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor services env <name>")
+		fmt.Printf("Usage: %s services env <name>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {
@@ -134,7 +134,7 @@ func servicesEnvCmd(c *CLI, ctx *cli.Context) {
 
 func servicesScaleCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor services scale --replicas=N <name>")
+		fmt.Printf("Usage: %s services scale --replicas=N <name>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {
@@ -156,7 +156,7 @@ func servicesScaleCmd(c *CLI, ctx *cli.Context) {
 
 func servicesRestartCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor services restart <name>")
+		fmt.Printf("Usage: %s services restart <name>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {

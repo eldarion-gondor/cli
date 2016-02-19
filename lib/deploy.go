@@ -60,7 +60,7 @@ func deployCmd(c *CLI, ctx *cli.Context) {
 	}
 	// 2. perform build from source blob
 	fmt.Printf("       Running git archive --format=tar %s... ", source)
-	f, err := ioutil.TempFile("", "g3a-")
+	f, err := ioutil.TempFile("", fmt.Sprintf("%s-", c.Name))
 	if err != nil {
 		fmt.Println("error")
 		fmt.Printf("       %s\n", err)

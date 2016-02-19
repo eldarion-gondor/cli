@@ -32,7 +32,7 @@ func keypairsListCmd(c *CLI, ctx *cli.Context) {
 
 func keypairsCreateCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor keypairs create --name=<keypair-name> <private-key-path> <certificate-path>")
+		fmt.Printf("Usage: %s keypairs create --name=<keypair-name> <private-key-path> <certificate-path>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) < 2 {
@@ -68,7 +68,7 @@ func keypairsCreateCmd(c *CLI, ctx *cli.Context) {
 
 func keypairsAttachCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor keypairs attach [--instance] --keypair=<keypair-name> --service=<name>")
+		fmt.Printf("Usage: %s keypairs attach [--instance] --keypair=<keypair-name> --service=<name>\n", c.Name)
 		fatal(msg)
 	}
 	if ctx.String("keypair") == "" {
@@ -101,7 +101,7 @@ func keypairsAttachCmd(c *CLI, ctx *cli.Context) {
 
 func keypairsDetachCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor keypairs detach [--instance] --service=<name>")
+		fmt.Printf("Usage: %s keypairs detach [--instance] --service=<name>\n", c.Name)
 		fatal(msg)
 	}
 	if ctx.String("service") == "" {
@@ -123,7 +123,7 @@ func keypairsDetachCmd(c *CLI, ctx *cli.Context) {
 
 func keypairsDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor keypairs delete <keypair-name>")
+		fmt.Printf("Usage: %s keypairs delete <keypair-name>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {

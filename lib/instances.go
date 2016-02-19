@@ -12,7 +12,7 @@ import (
 
 func instancesCreateCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor instances create [--kind] <label>")
+		fmt.Printf("Usage: %s instances create [--kind] <label>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {
@@ -53,7 +53,7 @@ func instancesListCmd(c *CLI, ctx *cli.Context) {
 
 func instancesDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor instances delete <label>")
+		fmt.Printf("Usage: %s instances delete <label>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {

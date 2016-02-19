@@ -33,7 +33,7 @@ func scheduledTasksListCmd(c *CLI, ctx *cli.Context) {
 
 func scheduledTasksCreateCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor scheduled-tasks create [--instance,--timezone] --name --schedule -- <executable> <arg-or-option>...")
+		fmt.Printf("Usage: %s scheduled-tasks create [--instance,--timezone] --name --schedule -- <executable> <arg-or-option>...\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {
@@ -66,7 +66,7 @@ func scheduledTasksCreateCmd(c *CLI, ctx *cli.Context) {
 
 func scheduledTasksDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor scheduled-tasks delete <name>")
+		fmt.Printf("Usage: %s scheduled-tasks delete <name>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {

@@ -57,3 +57,4 @@ between clusters within the same cloud. An example `identities.json` file:
 ### Bug fixes
 
 * `services env|restart` learned `--instance` flag
+* removed more instances of `gondor` and `g3a` in help output

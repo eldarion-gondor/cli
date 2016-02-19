@@ -9,7 +9,7 @@ import (
 
 func openCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: g3a open [--instance] <service-name>")
+		fmt.Printf("Usage: %s open [--instance] <service-name>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {

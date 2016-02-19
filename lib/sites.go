@@ -80,7 +80,7 @@ func sitesInitCmd(c *CLI, ctx *cli.Context) {
 	if err := ioutil.WriteFile(configFilename, buf, 0644); err != nil {
 		fatal(fmt.Sprintf("writing %s: %s", configFilename, err))
 	}
-	fmt.Printf("Wrote %s to your current directory.\nYour site is ready to be deployed. To deploy, run:\n\n\tg3a deploy\n\nDon't forget to commit %s before deploying.\n", configFilename, configFilename)
+	fmt.Printf("Wrote %s to your current directory.\nYour site is ready to be deployed. To deploy, run:\n\n\t%s deploy\n\nDon't forget to commit %s before deploying.\n", configFilename, c.Name, configFilename)
 }
 
 func sitesCreateCmd(c *CLI, ctx *cli.Context) {
@@ -102,7 +102,7 @@ func sitesCreateCmd(c *CLI, ctx *cli.Context) {
 
 func sitesDeleteCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor sites delete <site-name>")
+		fmt.Printf("Usage: %s sites delete <site-name>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {
@@ -181,7 +181,7 @@ func sitesUsersListCmd(c *CLI, ctx *cli.Context) {
 
 func sitesUsersAddCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor sites users add [--role=dev] <email>")
+		fmt.Printf("Usage: %s sites users add [--role=dev] <email>\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {

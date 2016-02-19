@@ -9,7 +9,7 @@ import (
 
 func runCmd(c *CLI, ctx *cli.Context) {
 	usage := func(msg string) {
-		fmt.Println("Usage: gondor run [--instance] <service-name> -- <executable> <arg-or-option>...")
+		fmt.Printf("Usage: %s run [--instance] <service-name> -- <executable> <arg-or-option>...\n", c.Name)
 		fatal(msg)
 	}
 	if len(ctx.Args()) == 0 {
