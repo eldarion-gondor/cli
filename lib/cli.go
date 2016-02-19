@@ -888,12 +888,17 @@ func (c *CLI) checkVersion() {
 }
 
 func (c *CLI) CheckForUpgrade() (*versionInfo, error) {
-	r, err := http.Get("https://api.us2.gondor.io/v2/client/")
+	req, err := http.NewRequest("GET", "https://api.us2.gondor.io/v2/client/", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("X-Gondor-Client", fmt.Sprintf("%s %s", c.Name, c.Version))
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	var versionJson interface{}
-	err = json.NewDecoder(r.Body).Decode(&versionJson)
+	err = json.NewDecoder(resp.Body).Decode(&versionJson)
 	if err != nil {
 		return nil, err
 	}
