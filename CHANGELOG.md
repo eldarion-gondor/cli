@@ -8,7 +8,47 @@ here are an continuation of that release.
 
 ### Backward Incompatible Changes
 
-* configuration has changed to support multiple clouds and clusters
+#### Support for custom clouds and clusters
+
+It is now possible to configure the CLI to target custom cloud and clusters. To do this the CLI will look for `~/.config/gondor/clouds.json`. An example configuration might be:
+
+    {
+        "clouds": [
+            {
+                "name": "my-cloud",
+                "identity": {
+                    "type": "oauth2",
+                    "location": "identity.example.com",
+                    "client-id": "..."
+                },
+                "current-cluster": "my-cluster",
+                "clusters": [
+                    {
+                        "name": "my-cluster",
+                        "location": "api.my-cluster.example.com",
+                        "insecure-skip-verify": true
+                    }
+                ]
+            }
+        ]
+    }
+
+To support this feature, identity management has been centralized to
+`~/.config/gondor/identities.json`. This is required to share credentials
+between clusters within the same cloud. An example `identities.json` file:
+
+    {
+        "identities": [
+            {
+                "provider": "identity.example.com",
+                "username": "my-username",
+                "oauth2": {
+                    "access_token": "...",
+                    "refresh_token": "..."
+                }
+            }
+        ]
+    }
 
 ### Features
 
