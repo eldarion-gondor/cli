@@ -152,7 +152,7 @@ func (cfg *GlobalConfig) GetCurrentCloud() *Cloud {
 }
 
 func LoadGlobalConfig(c *CLI, ctx *cli.Context, root string) error {
-	var err error
+	var rerr error
 	if c.Config == nil {
 		c.Config = &GlobalConfig{
 			root: root,
@@ -164,7 +164,7 @@ func LoadGlobalConfig(c *CLI, ctx *cli.Context, root string) error {
 		// create config directories if they do not exist
 		if _, err := os.Stat(root); os.IsNotExist(err) {
 			if err := os.Mkdir(root, 0700); err != nil {
-				err = fmt.Errorf("failed to create %s: %s", root, err)
+				rerr = fmt.Errorf("failed to create %s: %s", root, err)
 				return
 			}
 		} else {
@@ -172,10 +172,12 @@ func LoadGlobalConfig(c *CLI, ctx *cli.Context, root string) error {
 			data, err := ioutil.ReadFile(path.Join(root, "identity.json"))
 			if err == nil {
 				if err := json.Unmarshal(data, &c.Config); err != nil {
+					rerr = err
 					return
 				}
 			} else {
 				if !os.IsNotExist(err) {
+					rerr = err
 					return
 				}
 			}
@@ -183,41 +185,47 @@ func LoadGlobalConfig(c *CLI, ctx *cli.Context, root string) error {
 			data, err = ioutil.ReadFile(path.Join(root, "clouds.json"))
 			if err == nil {
 				if err := json.Unmarshal(data, &c.Config); err != nil {
+					rerr = err
 					return
 				}
 			} else {
 				if !os.IsNotExist(err) {
+					rerr = err
 					return
 				}
 			}
 		}
 		if c.Config.Cloud == nil {
+			var err error
 			var cloud *Cloud
 			cloudName := ctx.GlobalString("cloud")
 			if cloudName != "" {
 				if cloud, err = c.Config.GetCloudByName(cloudName); err != nil {
+					rerr = err
 					return
 				}
 			} else {
 				cloud = c.Config.GetCurrentCloud()
 				if cloud == nil {
-					err = fmt.Errorf("current cloud not specified; use --cloud or set current-cloud in %s", path.Join(root, "clouds.json"))
+					rerr = fmt.Errorf("current cloud not specified; use --cloud or set current-cloud in %s", path.Join(root, "clouds.json"))
 					return
 				}
 			}
 			c.Config.Cloud = cloud
 		}
 		if c.Config.Cluster == nil {
+			var err error
 			var cluster *Cluster
 			clusterName := ctx.GlobalString("cluster")
 			if clusterName != "" {
 				if cluster, err = c.Config.Cloud.GetClusterByName(clusterName); err != nil {
+					rerr = err
 					return
 				}
 			} else {
 				cluster = c.Config.Cloud.GetCurrentCluster()
 				if cluster == nil {
-					err = fmt.Errorf("current cluster not specified; use --cluster or set current-cluster in %s of %s", c.Config.Cloud.Name, path.Join(root, "clouds.json"))
+					rerr = fmt.Errorf("current cluster not specified; use --cluster or set current-cluster in %s of %s", c.Config.Cloud.Name, path.Join(root, "clouds.json"))
 					return
 				}
 			}
@@ -235,7 +243,7 @@ func LoadGlobalConfig(c *CLI, ctx *cli.Context, root string) error {
 		}
 		c.Config.loaded = true
 	})
-	return err
+	return rerr
 }
 
 type clientConfigPersister struct {
@@ -349,14 +357,16 @@ func LoadSiteConfigFromFile(filename string, dst interface{}) error {
 }
 
 func LoadSiteConfig() error {
-	var err error
+	var rerr error
 	siteCfg.once.Do(func() {
 		filename, err := FindSiteConfig()
 		if err != nil {
+			rerr = err
 			return
 		}
 		siteCfg.filename = filename
 		if err := LoadSiteConfigFromFile(filename, &siteCfg); err != nil {
+			rerr = err
 			return
 		}
 		// git metadata
@@ -383,7 +393,7 @@ func LoadSiteConfig() error {
 			siteCfg.instances[siteCfg.Branches[branch]] = branch
 		}
 	})
-	return err
+	return rerr
 }
 
 func MustLoadSiteConfig() {

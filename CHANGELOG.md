@@ -1,5 +1,11 @@
 # ChangeLog
 
+## 0.8.1
+
+### Bug fixes
+
+* fixed error handling when loading global and site configuration
+
 ## 0.8.0
 
 This marks the first release of the CLI base library. The previous release of
