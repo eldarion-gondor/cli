@@ -473,8 +473,15 @@ func (c *CLI) Run() {
 					},
 				},
 				{
-					Name:   "env",
-					Usage:  "",
+					Name:  "env",
+					Usage: "",
+					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name:  "instance",
+							Value: "",
+							Usage: "instance label",
+						},
+					},
 					Action: c.cmd(c.stdCmd(servicesEnvCmd)),
 					BashComplete: func(ctx *cli.Context) {
 						if len(ctx.Args()) > 0 {
@@ -499,6 +506,11 @@ func (c *CLI) Run() {
 							Name:  "replicas",
 							Usage: "desired number of replicas",
 						},
+						cli.StringFlag{
+							Name:  "instance",
+							Value: "",
+							Usage: "instance label",
+						},
 					},
 					Action: c.cmd(c.stdCmd(servicesScaleCmd)),
 					BashComplete: func(ctx *cli.Context) {
@@ -517,8 +529,15 @@ func (c *CLI) Run() {
 					},
 				},
 				{
-					Name:   "restart",
-					Usage:  "restart a service on a given instance",
+					Name:  "restart",
+					Usage: "restart a service on a given instance",
+					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name:  "instance",
+							Value: "",
+							Usage: "instance label",
+						},
+					},
 					Action: c.cmd(c.stdCmd(servicesRestartCmd)),
 					BashComplete: func(ctx *cli.Context) {
 						if len(ctx.Args()) > 0 {
