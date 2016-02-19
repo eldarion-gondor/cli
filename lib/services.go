@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/codegangsta/cli"
-	"github.com/eldarion-gondor/gondor-go"
+	"github.com/eldarion-gondor/gondor-go/lib"
 	"github.com/olekukonko/tablewriter"
 )
 

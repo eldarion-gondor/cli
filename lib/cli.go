@@ -14,7 +14,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/codegangsta/cli"
-	"github.com/eldarion-gondor/gondor-go"
+	"github.com/eldarion-gondor/gondor-go/lib"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pivotal-golang/bytefmt"
 )

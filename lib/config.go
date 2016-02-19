@@ -14,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/codegangsta/cli"
-	"github.com/eldarion-gondor/gondor-go"
+	"github.com/eldarion-gondor/gondor-go/lib"
 
 	"gopkg.in/yaml.v2"
 )
