@@ -29,7 +29,8 @@ func (cfg *Config) Persist() error {
 type Client struct {
 	cfg *Config
 
-	httpClient *http.Client
+	httpClient    *http.Client
+	clientVersion string
 
 	ResourceGroups *ResourceGroupResource
 	Sites          *SiteResource
@@ -54,6 +55,10 @@ func NewClient(cfg *Config, httpClient *http.Client) *Client {
 	}
 	c.attachResources()
 	return c
+}
+
+func (c *Client) SetClientVersion(cv string) {
+	c.clientVersion = cv
 }
 
 func (c *Client) EnableHTTPLogging(value bool) {

@@ -35,6 +35,9 @@ func (c *Client) SendRequest(method string, url *url.URL, payload, result interf
 		return nil, err
 	}
 	header.Add("Accept", "application/json")
+	if c.clientVersion != "" {
+		header.Add("X-Gondor-Client", c.clientVersion)
+	}
 	req.Header = header
 	c.logRequest(req)
 	var errList ErrorList

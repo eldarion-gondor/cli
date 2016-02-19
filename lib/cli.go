@@ -826,6 +826,7 @@ func (c *CLI) GetAPIClient(ctx *cli.Context) *gondor.Client {
 		if ctx.GlobalBool("log-http") {
 			c.api.EnableHTTPLogging(true)
 		}
+		c.api.SetClientVersion(fmt.Sprintf("%s %s", c.Name, c.Version))
 	}
 	return c.api
 }

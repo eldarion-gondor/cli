@@ -16,7 +16,7 @@
 		},
 		{
 			"ImportPath": "github.com/eldarion-gondor/gondor-go/lib",
-			"Rev": "4a3a77eb8590461b0d6a1b7ee02d3a45c14f6fdb"
+			"Rev": "234469a1898af4d4344f6ad087b3149ef07dfd2b"
 		},
 		{
 			"ImportPath": "github.com/eldarion-gondor/piper",
