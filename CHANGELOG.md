@@ -6,6 +6,7 @@
 
 * fixed error handling when loading global and site configuration
 * global config learned to create ~/.config when it does not exist
+* fixed persistence of identities when credentials are revoked
 
 ## 0.8.0
 

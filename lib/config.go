@@ -251,19 +251,28 @@ type clientConfigPersister struct {
 }
 
 func (p *clientConfigPersister) Persist(config *gondor.Config) error {
-	p.cfg.Identity = &Identity{
-		Provider: p.cfg.Cloud.Identity.Location,
-		Username: config.Auth.Username,
-		OAuth2: OAuth2Config{
-			AccessToken:  config.Auth.AccessToken,
-			RefreshToken: config.Auth.RefreshToken,
-		},
+	if config.Auth.Username == "" {
+		p.cfg.Identity = nil
+	} else {
+		p.cfg.Identity = &Identity{
+			Provider: p.cfg.Cloud.Identity.Location,
+			Username: config.Auth.Username,
+			OAuth2: OAuth2Config{
+				AccessToken:  config.Auth.AccessToken,
+				RefreshToken: config.Auth.RefreshToken,
+			},
+		}
 	}
 	m := make(map[string]*Identity)
 	for i := range p.cfg.Identities {
-		m[p.cfg.Identities[i].Provider] = p.cfg.Identities[i]
+		if p.cfg.Identities[i].Provider == p.cfg.Cloud.Identity.Location {
+			if p.cfg.Identity != nil {
+				m[p.cfg.Cloud.Identity.Location] = p.cfg.Identity
+			}
+		} else {
+			m[p.cfg.Identities[i].Provider] = p.cfg.Identities[i]
+		}
 	}
-	m[p.cfg.Cloud.Identity.Location] = p.cfg.Identity
 	var identities []*Identity
 	for _, i := range m {
 		identities = append(identities, i)
