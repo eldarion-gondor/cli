@@ -821,6 +821,30 @@ func (c *CLI) SetIdentity(identity *Identity) {
 
 func (c *CLI) GetAPIClient(ctx *cli.Context) *gondor.Client {
 	if c.api == nil {
+		LoadSiteConfig()
+		if siteCfg.Cluster != "" {
+			var siteCloud, siteCluster string
+			if strings.Count(siteCfg.Cluster, "/") == 0 {
+				siteCluster = siteCfg.Cluster
+			} else {
+				parts := strings.Split(siteCfg.Cluster, "/")
+				siteCloud, siteCluster = parts[0], parts[1]
+			}
+			if siteCloud != "" {
+				cloud, err := c.Config.GetCloudByName(siteCloud)
+				if err != nil {
+					fatal(err.Error())
+				}
+				c.SetCloud(cloud)
+			}
+			if siteCluster != "" {
+				cluster, err := c.Config.Cloud.GetClusterByName(siteCluster)
+				if err != nil {
+					fatal(err.Error())
+				}
+				c.SetCluster(cluster)
+			}
+		}
 		httpClient := c.GetHttpClient(ctx)
 		c.api = gondor.NewClient(c.Config.GetClientConfig(), httpClient)
 		if ctx.GlobalBool("log-http") {

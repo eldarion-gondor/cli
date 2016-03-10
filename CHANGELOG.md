@@ -1,5 +1,11 @@
 # ChangeLog
 
+## 0.8.2
+
+### Features
+
+* site config learned `cluster` to set cloud/cluster per-site
+
 ## 0.8.1
 
 ### Bug fixes

@@ -332,6 +332,7 @@ type VCSMetadata struct {
 }
 
 type SiteConfig struct {
+	Cluster      string            `yaml:"cluster"`
 	Identifier   string            `yaml:"site"`
 	BuildpackURL string            `yaml:"buildpack,omitempty"`
 	Branches     map[string]string `yaml:"branches,omitempty"`
