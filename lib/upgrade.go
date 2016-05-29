@@ -2,6 +2,7 @@ package gondorcli
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/codegangsta/cli"
@@ -17,7 +18,12 @@ func upgradeCmd(c *CLI, ctx *cli.Context) {
 		)))
 	}
 	if newVersion != nil && !strings.Contains(c.Version, "-dev") {
-		err, _ := update.New().FromUrl(newVersion.DownloadURL)
+		resp, err := http.Get(newVersion.DownloadURL)
+		if err != nil {
+			fatal(err.Error())
+		}
+		defer resp.Body.Close()
+		err := update.Apply(resp.Body, update.Options{})
 		if err != nil {
 			fatal(err.Error())
 		}
