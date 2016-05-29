@@ -387,9 +387,9 @@ func LoadSiteConfig() error {
 		var branch string
 		output, err := exec.Command("git", "symbolic-ref", "HEAD").Output()
 		if err == nil {
-			bits := strings.Split(strings.TrimSpace(string(output)), "/")
-			if len(bits) == 3 {
-				branch = bits[2]
+			bits := strings.Split(strings.TrimSpace(string(output)), "refs/heads/")
+			if len(bits) == 2 {
+				branch = bits[1]
 			}
 		}
 		var commit string
