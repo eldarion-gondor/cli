@@ -1,10 +1,8 @@
 hash: 001bc5ce40ffeff35b9e5b5c029f22e35e7919cae5cafffb8b3a1f6d816b658a
-updated: 2016-05-29T13:21:14.51519586-06:00
+updated: 2016-05-29T13:25:25.28898342-06:00
 imports:
 - name: github.com/bgentry/speakeasy
   version: e1439544d8ecd0f3e9373a636d447668096a8f81
-- name: github.com/codegangsta/cli
-  version: 9a18ffad6c548ca4d458d4c30a8aa4d181cf92fa
 - name: github.com/eldarion-gondor/gondor-go
   version: 234469a1898af4d4344f6ad087b3149ef07dfd2b
   subpackages:
