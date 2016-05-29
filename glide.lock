@@ -1,5 +1,5 @@
 hash: 001bc5ce40ffeff35b9e5b5c029f22e35e7919cae5cafffb8b3a1f6d816b658a
-updated: 2016-05-29T13:13:37.037020602-06:00
+updated: 2016-05-29T13:21:14.51519586-06:00
 imports:
 - name: github.com/bgentry/speakeasy
   version: e1439544d8ecd0f3e9373a636d447668096a8f81
