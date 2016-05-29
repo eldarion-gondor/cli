@@ -1,5 +1,11 @@
 # ChangeLog
 
+### 0.9.0 development
+
+### Bug fixes
+
+* fixed branch mapping when branch contains a slash
+
 ## 0.8.2
 
 ### Features
