@@ -48,8 +48,8 @@ func (c *CLI) Prepare() {
 	c.Config = &GlobalConfig{}
 }
 
-func (c *CLI) cmd(cmdFunc func(*CLI, *cli.Context)) func(*cli.Context) {
-	return func(ctx *cli.Context) {
+func (c *CLI) cmd(cmdFunc func(*CLI, *cli.Context)) func(*cli.Context) error {
+	return func(ctx *cli.Context) error {
 		configPath, err := homedir.Expand("~/.config/gondor")
 		if err != nil {
 			fatal(err.Error())
@@ -65,6 +65,7 @@ func (c *CLI) cmd(cmdFunc func(*CLI, *cli.Context)) func(*cli.Context) {
 			}
 		}
 		cmdFunc(c, ctx)
+		return nil
 	}
 }
 
@@ -119,9 +120,10 @@ func (c *CLI) Run() {
 			Usage: "log HTTP interactions",
 		},
 	)
-	app.Action = func(ctx *cli.Context) {
+	app.Action = func(ctx *cli.Context) error {
 		c.checkVersion()
 		cli.ShowAppHelp(ctx)
+		return nil
 	}
 	app.Commands = []cli.Command{
 		{
