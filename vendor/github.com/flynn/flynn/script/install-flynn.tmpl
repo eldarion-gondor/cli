@@ -1,0 +1,261 @@
+#!/bin/bash
+#
+# A script to install Flynn from a TUF repository.
+
+FLYNN_HOST_CHECKSUM="${FLYNN_HOST_CHECKSUM:="{{FLYNN-HOST-CHECKSUM}}"}"
+FLYNN_UPDATE_CHANNEL="${FLYNN_UPDATE_CHANNEL:="stable"}"
+
+usage() {
+  cat <<USAGE >&2
+usage: $0 [options]
+
+OPTIONS:
+  -h, --help            Show this message
+  -r, --repo URL        The TUF repository to download files from [default: https://dl.flynn.io]
+  --clean               Install from a clean state (implies --remove) [DANGER: this will remove all associated data]
+  --remove              Remove existing Flynn installation [DANGER: this will remove all associated data]
+  --yes                 Automatic yes to prompts
+
+VARIABLES:
+  FLYNN_UPDATE_CHANNEL   The release channel to fetch updates from (either "nightly" or "stable") [default: stable]
+  FLYNN_VERSION          An explicit version to install (e.g. v20151104.1)
+USAGE
+}
+
+main() {
+  if ! is_root; then
+    fail "this script must be executed as the root user"
+  fi
+
+  if ! is_ubuntu_trusty; then
+    fail "this script is only compatible with Ubuntu 14.04 LTS, Trusty Tahr"
+  fi
+
+  check_installed "curl" "sha512sum"
+
+  local install=true
+  local remove=false
+  local assume_yes=false
+  local repo_url
+
+  export DEBIAN_FRONTEND=noninteractive
+
+  while true; do
+    case "$1" in
+      --clean)
+        remove=true
+        shift
+        ;;
+      --remove)
+        remove=true
+        install=false
+        shift
+        ;;
+      --yes)
+        assume_yes=true
+        shift
+        ;;
+      -h | --help)
+        usage
+        exit 1
+        ;;
+      -r | --repo)
+        if [[ -z "$2" ]]; then
+          usage
+          exit 1
+        fi
+        repo_url="$2"
+        shift 2
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ $# -ne 0 ]]; then
+    usage
+    exit 1
+  fi
+
+  if $remove; then
+    do_remove $assume_yes
+  fi
+
+  if ! $install; then
+    exit
+  fi
+
+  repo_url="${repo_url:="https://dl.flynn.io"}"
+
+  info "adding zfs-native APT PPA"
+  run apt-key adv --keyserver keyserver.ubuntu.com --recv E871F18B51E0147C77796AC81196BA81F6B0FC61
+  mkdir -p "/etc/apt/sources.list.d"
+  echo deb http://ppa.launchpad.net/zfs-native/stable/ubuntu trusty main > /etc/apt/sources.list.d/zfs.list
+  run apt-get update
+
+  # install linux-headers explicitly before ubuntu-zfs to avoid skipping
+  # building kernel modules due to absent kernel headers.
+  info "installing linux-headers"
+  run apt-get install -y "linux-headers-$(uname -r)"
+
+  local packages=(
+    "aufs-tools"
+    "iptables"
+    "libvirt-bin"
+    "ubuntu-zfs"
+  )
+  if ! modprobe aufs &>/dev/null; then
+    packages+=(
+      "linux-image-extra-$(uname -r)"
+    )
+  fi
+  info "installing runtime dependencies"
+  run apt-get install --yes ${packages[@]}
+  info "loading zfs kernel module"
+  run modprobe zfs
+
+  info "downloading flynn-host binary to tmp dir"
+  local tmp="$(mktemp --directory)"
+  trap "rm -rf ${tmp}" EXIT
+  cd "${tmp}"
+  if ! curl -fsSL -o "${tmp}/flynn-host.gz" "${repo_url}/tuf/targets/${FLYNN_HOST_CHECKSUM}.flynn-host.gz"; then
+    fail "failed to download flynn-host binary from ${repo_url}"
+  fi
+
+  info "verifying flynn-host binary checksum"
+  if ! echo "${FLYNN_HOST_CHECKSUM} *flynn-host.gz" | sha512sum --check --status; then
+    fail "failed to verify flynn-host binary checksum!"
+  fi
+  run gunzip "flynn-host.gz"
+  run chmod +x "flynn-host"
+
+  info "setting release update channel to \"${FLYNN_UPDATE_CHANNEL}\""
+  mkdir -p "/etc/flynn"
+  echo "${FLYNN_UPDATE_CHANNEL}" > "/etc/flynn/channel.txt"
+
+  info "downloading Flynn components"
+  mkdir -p "/etc/flynn"
+  run ./flynn-host download \
+    --repository "${repo_url}/tuf" \
+    --tuf-db     "/etc/flynn/tuf.db" \
+    --config-dir "/etc/flynn" \
+    --bin-dir    "/usr/local/bin"
+
+  info "setting libvirt defaults"
+  if grep -q "^libvirt_uris=" /etc/default/libvirt-bin; then
+    sed "s|^libvirt_uris=.*|libvirt_uris='qemu:///system'|" -i /etc/default/libvirt-bin
+  else
+    echo "libvirt_uris='qemu:///system'" >> /etc/default/libvirt-bin
+  fi
+
+  info "installing Upstart job"
+  cp /etc/flynn/upstart.conf /etc/init/flynn-host.conf
+  initctl reload-configuration
+
+  info "installation complete!"
+}
+
+is_root() {
+  [[ $(id -u) -eq 0 ]]
+}
+
+is_ubuntu_trusty() {
+  grep "Ubuntu 14.04" "/etc/os-release" &>/dev/null
+}
+
+do_remove() {
+  local assume_yes=$1
+
+  warn "*** WARNING ***"
+  warn "About to stop Flynn and remove all existing data"
+
+  if ! $assume_yes; then
+    warn "Are you sure this is what you want?"
+    echo -n "(yes/no): "
+    while read answer; do
+      case "${answer}" in
+        yes) assume_yes=true; break ;;
+        no)  break ;;
+        *)   echo -n "Please type 'yes' or 'no': " ;;
+      esac
+    done
+    if ! $assume_yes; then
+      exit
+    fi
+  fi
+
+  info "stopping flynn-host daemon"
+  local status="$(status flynn-host)"
+  if [[ "${status:0:16}" = "flynn-host start" ]]; then
+    run stop flynn-host
+  fi
+
+  info "killing old containers"
+  for name in $(virsh -c lxc:/// list --name); do
+    run virsh -c lxc:/// destroy "${name}"
+  done
+
+  info "destroying ZFS volumes"
+  for path in $(grep zfs /proc/mounts | cut -d ' ' -f2); do
+    run sudo umount "${path}"
+  done
+  if which flynn-host &>/dev/null; then
+    run flynn-host destroy-volumes --include-data
+  fi
+  if zpool list | grep -q "flynn-default"; then
+    run zpool destroy flynn-default
+  fi
+
+  info "removing Flynn files and directories"
+  run rm -rf /usr/local/bin/flynn* /var/lib/flynn /etc/flynn
+
+  info "Flynn successfully removed"
+}
+
+check_installed() {
+  local missing=()
+
+  for bin in $@; do
+    if ! which "${bin}" &>/dev/null; then
+      missing+=("${bin}")
+    fi
+  done
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    fail "this script requires: ${missing[@]}"
+  fi
+}
+
+run() {
+  local cmd=$@
+  info "running \"${cmd}\""
+  $cmd
+
+  local status=$?
+  if [[ $status -ne 0 ]]; then
+    fail "failed to run \"${cmd}\", exit status ${status}"
+  fi
+}
+
+timestamp() {
+  date "+%H:%M:%S.%3N"
+}
+
+info() {
+  local msg=$1
+  echo -e "\e[1;32m===> $(timestamp) ${msg}\e[0m"
+}
+
+warn() {
+  local msg=$1
+  echo -e "\e[1;33m===> $(timestamp) ${msg}\e[0m"
+}
+
+fail() {
+  local msg=$1
+  echo -e "\e[1;31m===> $(timestamp) ERROR: ${msg}\e[0m"
+  exit 1
+}
+
+main $@

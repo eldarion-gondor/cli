@@ -1,0 +1,131 @@
+#!/bin/bash
+
+set -e
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+source "${ROOT}/script/lib/ui.sh"
+
+usage() {
+  cat <<USAGE >&2
+usage: $0 [options]
+
+Boot a Flynn cluster.
+
+Use the --size flag to boot a multi-node cluster, which will create a virtual
+network interface for each node and bind all host network services to that
+interface (i.e. flynn-host, discoverd, flannel and router)
+
+OPTIONS:
+  -h, --help               Show this message
+  -s, --size=SIZE          Cluster size [default: 1]
+  -z, --no-destroy-vols    Don't destroy volumes
+  -v, --version=VERSION    Boot using the released VERSION (e.g. v20151104.1)
+  --from-backup=FILE       Bootstrap from backup file
+USAGE
+}
+
+main() {
+  local size="1"
+  local destroy_vols=true
+  local version=""
+  local host_flags=""
+  local backup=""
+
+  while true; do
+    case "$1" in
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      -s | --size)
+        if [[ -z "$2" ]]; then
+          usage
+          exit 1
+        fi
+        size="$2"
+        shift 2
+        ;;
+      -z | --no-destroy-vols)
+        destroy_vols=false
+        host_flags+="-z"
+        shift
+        ;;
+      -v | --version)
+        if [[ -z "$2" ]]; then
+          usage
+          exit 1
+        fi
+        version="$2"
+        shift 2
+        ;;
+      --from-backup)
+        if [[ -z "$2" ]]; then
+          usage
+          exit 1
+        fi
+        backup="--from-backup=$2"
+        shift 2
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ $# -ne 0 ]]; then
+    usage
+    exit 1
+  fi
+
+  local bin_dir="${ROOT}/host/bin"
+  local flynn_host="${bin_dir}/flynn-host"
+  local manifest="${ROOT}/bootstrap/bin/manifest.json"
+
+  if [[ -n "${version}" ]]; then
+    local dir="${ROOT}/tmp/${version}"
+    mkdir -p "${dir}"
+
+    info "downloading ${version} into ${dir}"
+    sudo FLYNN_VERSION="${version}" "${flynn_host}" download --config-dir "${dir}" --bin-dir "${dir}"
+    flynn_host="${dir}/flynn-host"
+    bin_dir="${dir}"
+    manifest="${dir}/bootstrap-manifest.json"
+  fi
+
+  # kill flynn first
+  "${ROOT}/script/kill-flynn"
+
+  local ips=()
+  info "starting ${size} node cluster"
+
+  # don't create unnecessary vxlan devices
+  export FLANNEL_BACKEND="alloc"
+
+  for index in $(seq 0 $((size - 1))); do
+    # An RFC 5737 TEST-NET IP
+    local ip="192.0.2.20$(($index))"
+    ips+=("${ip}")
+
+    info "starting flynn-host using IP ${ip}"
+    sudo ifconfig "eth0:${index}" "${ip}"
+    "${ROOT}/script/start-flynn-host" "${host_flags}" "${ip}" "${index}"
+  done
+
+  info "bootstrapping Flynn"
+  export CLUSTER_DOMAIN="${size}.localflynn.com"
+  export DISCOVERD="${ips[0]}:1111"
+  "${flynn_host}" \
+    bootstrap \
+    ${backup} \
+    --min-hosts="${size}" \
+    --peer-ips="$(join "," ${ips[@]})" \
+    "${manifest}"
+}
+
+join() {
+  local IFS="$1"
+  shift
+  echo "$*"
+}
+
+main $@

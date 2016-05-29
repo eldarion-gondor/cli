@@ -1,0 +1,12 @@
+.tup
+bin
+*.deb
+.vagrant
+/version.json
+/log
+script/custom-vagrant
+demo/*.log
+util/_toolchain/**
+*.swp
+*.test
+/tmp

@@ -1,0 +1,1541 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"math"
+	"net/http"
+	"os"
+	"sync"
+	"time"
+
+	"github.com/flynn/flynn/Godeps/_workspace/src/gopkg.in/inconshreveable/log15.v2"
+	controller "github.com/flynn/flynn/controller/client"
+	ct "github.com/flynn/flynn/controller/types"
+	"github.com/flynn/flynn/controller/utils"
+	discoverd "github.com/flynn/flynn/discoverd/client"
+	host "github.com/flynn/flynn/host/types"
+	"github.com/flynn/flynn/pkg/attempt"
+	"github.com/flynn/flynn/pkg/cluster"
+	"github.com/flynn/flynn/pkg/httphelper"
+	"github.com/flynn/flynn/pkg/random"
+	"github.com/flynn/flynn/pkg/shutdown"
+	"github.com/flynn/flynn/pkg/status"
+	"github.com/flynn/flynn/pkg/stream"
+	"github.com/flynn/flynn/pkg/typeconv"
+)
+
+const (
+	eventBufferSize      = 1000
+	defaultMaxHostChecks = 10
+)
+
+var (
+	ErrNotLeader        = errors.New("scheduler is not the leader")
+	ErrNoHosts          = errors.New("no hosts found")
+	ErrJobNotPending    = errors.New("job is no longer pending")
+	ErrNoHostsMatchTags = errors.New("no hosts found matching job tags")
+)
+
+type Scheduler struct {
+	utils.ControllerClient
+	utils.ClusterClient
+
+	discoverd Discoverd
+	isLeader  *bool
+
+	logger log15.Logger
+
+	backoffPeriod time.Duration
+	maxHostChecks int
+
+	formations Formations
+	hosts      map[string]*Host
+	jobs       Jobs
+
+	// getJobs is used by tests that want to inspect the schedulers jobs
+	// without causing data races (jobs should only be referenced in the
+	// main loop)
+	getJobs chan Jobs
+
+	jobEvents chan *host.Event
+
+	stop     chan struct{}
+	stopOnce sync.Once
+
+	syncJobs          chan struct{}
+	syncFormations    chan struct{}
+	syncHosts         chan struct{}
+	hostChecks        chan struct{}
+	rectify           chan struct{}
+	hostEvents        chan *discoverd.Event
+	formationEvents   chan *ct.ExpandedFormation
+	putJobs           chan *ct.Job
+	placementRequests chan *PlacementRequest
+
+	rectifyBatch map[utils.FormationKey]struct{}
+
+	// formationlessJobs is a map of formation keys to a list of jobs
+	// which are in-memory but do not have a formation (because the
+	// formation lookup failed when we got an event for the job), and is
+	// used to update the jobs once we get the formation during a sync
+	// so that we can determine if the job should actually be running
+	formationlessJobs map[utils.FormationKey]map[string]*Job
+
+	// pendingTagJobs is a map of jobs which are currently pending due to
+	// their tags not matching any hosts, and is used to try and place the
+	// jobs when host tags change
+	pendingTagJobs map[string]*Job
+
+	// pause and resume are used by tests to control the main loop
+	pause  chan struct{}
+	resume chan struct{}
+
+	// generateJobUUID generates a UUID for new job IDs and is overridden in tests
+	// to make them more predictable
+	generateJobUUID func() string
+}
+
+func NewScheduler(cluster utils.ClusterClient, cc utils.ControllerClient, disc Discoverd, l log15.Logger) *Scheduler {
+	return &Scheduler{
+		ControllerClient:  cc,
+		ClusterClient:     cluster,
+		discoverd:         disc,
+		logger:            l,
+		backoffPeriod:     getBackoffPeriod(),
+		maxHostChecks:     defaultMaxHostChecks,
+		hosts:             make(map[string]*Host),
+		jobs:              make(map[string]*Job),
+		formations:        make(Formations),
+		jobEvents:         make(chan *host.Event, eventBufferSize),
+		stop:              make(chan struct{}),
+		syncJobs:          make(chan struct{}, 1),
+		syncFormations:    make(chan struct{}, 1),
+		syncHosts:         make(chan struct{}, 1),
+		hostChecks:        make(chan struct{}, 1),
+		rectifyBatch:      make(map[utils.FormationKey]struct{}),
+		rectify:           make(chan struct{}, 1),
+		formationEvents:   make(chan *ct.ExpandedFormation, eventBufferSize),
+		hostEvents:        make(chan *discoverd.Event, eventBufferSize),
+		putJobs:           make(chan *ct.Job, eventBufferSize),
+		placementRequests: make(chan *PlacementRequest, eventBufferSize),
+		formationlessJobs: make(map[utils.FormationKey]map[string]*Job),
+		getJobs:           make(chan Jobs),
+		pendingTagJobs:    make(map[string]*Job),
+		pause:             make(chan struct{}),
+		resume:            make(chan struct{}),
+		generateJobUUID:   random.UUID,
+	}
+}
+
+func main() {
+	logger := log15.New("component", "scheduler")
+	logger.SetHandler(log15.LvlFilterHandler(log15.LvlInfo, log15.StdoutHandler))
+	log := logger.New("fn", "main")
+
+	log.Info("creating cluster and controller clients")
+	hc := &http.Client{Timeout: 5 * time.Second}
+	clusterClient := utils.ClusterClientWrapper(cluster.NewClientWithHTTP(nil, hc))
+	controllerClient, err := controller.NewClient("", os.Getenv("AUTH_KEY"))
+	if err != nil {
+		log.Error("error creating controller client", "err", err)
+		shutdown.Fatal(err)
+	}
+
+	log.Info("waiting for controller API to come up")
+	if _, err := discoverd.GetInstances("controller", 5*time.Minute); err != nil {
+		log.Error("error waiting for controller API", "err", err)
+		shutdown.Fatal(err)
+	}
+
+	s := NewScheduler(clusterClient, controllerClient, newDiscoverdWrapper(logger), logger)
+	log.Info("started scheduler", "backoffPeriod", s.backoffPeriod)
+
+	go s.startHTTPServer(os.Getenv("PORT"))
+
+	if err := s.Run(); err != nil {
+		shutdown.Fatal(err)
+	}
+	shutdown.Exit()
+}
+
+func (s *Scheduler) streamFormationEvents() error {
+	log := s.logger.New("fn", "streamFormationEvents")
+
+	var events chan *ct.ExpandedFormation
+	var stream stream.Stream
+	var since *time.Time
+	connect := func() (err error) {
+		log.Info("connecting formation event stream")
+		events = make(chan *ct.ExpandedFormation, eventBufferSize)
+		stream, err = s.StreamFormations(since, events)
+		if err != nil {
+			log.Error("error connecting formation event stream", "err", err)
+		}
+		return
+	}
+	strategy := attempt.Strategy{Delay: 100 * time.Millisecond, Total: time.Minute}
+	if err := strategy.Run(connect); err != nil {
+		return err
+	}
+
+	current := make(chan struct{})
+	go func() {
+		var isCurrent bool
+	outer:
+		for {
+			for formation := range events {
+				// an empty formation indicates we now have the
+				// current list of formations.
+				if formation.App == nil {
+					if !isCurrent {
+						isCurrent = true
+						close(current)
+					}
+					continue
+				}
+				since = &formation.UpdatedAt
+				// if we are not current, explicitly handle the event
+				// so that the scheduler has the current list of
+				// formations before starting the main loop.
+				if !isCurrent {
+					s.HandleFormationChange(formation)
+					continue
+				}
+				s.formationEvents <- formation
+			}
+			log.Warn("formation event stream disconnected", "err", stream.Err())
+			for {
+				if err := connect(); err == nil {
+					continue outer
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+	}()
+
+	select {
+	case <-current:
+		return nil
+	case <-time.After(30 * time.Second):
+		return errors.New("timed out waiting for current formation list")
+	}
+}
+
+func (s *Scheduler) streamHostEvents() error {
+	log := s.logger.New("fn", "streamHostEvents")
+
+	var events chan *discoverd.Event
+	var stream stream.Stream
+	connect := func() (err error) {
+		log.Info("connecting host event stream")
+		events = make(chan *discoverd.Event, eventBufferSize)
+		stream, err = s.StreamHostEvents(events)
+		if err != nil {
+			log.Error("error connecting host event stream", "err", err)
+		}
+		return
+	}
+	if err := connect(); err != nil {
+		return err
+	}
+
+	current := make(chan struct{})
+	go func() {
+		var isCurrent bool
+	outer:
+		for {
+			for event := range events {
+				switch event.Kind {
+				case discoverd.EventKindCurrent:
+					if !isCurrent {
+						isCurrent = true
+						close(current)
+					}
+				case discoverd.EventKindUp, discoverd.EventKindUpdate, discoverd.EventKindDown:
+					// if we are not current, explicitly handle the event
+					// so that the scheduler is streaming job events from
+					// all current hosts before starting the main loop.
+					if !isCurrent {
+						s.HandleHostEvent(event)
+						continue
+					}
+					s.hostEvents <- event
+				}
+			}
+			log.Warn("host event stream disconnected", "err", stream.Err())
+			for {
+				if err := connect(); err == nil {
+					continue outer
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+	}()
+
+	select {
+	case <-current:
+		return nil
+	case <-time.After(30 * time.Second):
+		return errors.New("timed out waiting for current host list")
+	}
+}
+
+func (s *Scheduler) Run() error {
+	log := s.logger.New("fn", "Run")
+	log.Info("starting scheduler loop")
+	defer log.Info("scheduler loop exited")
+
+	// stream host events (which will start watching job events on
+	// all current hosts before returning) *before* registering in
+	// service discovery so that there is always at least one scheduler
+	// watching all job events, even during a deployment.
+	if err := s.streamHostEvents(); err != nil {
+		return err
+	}
+
+	if err := s.streamFormationEvents(); err != nil {
+		return err
+	}
+
+	isLeader, err := s.discoverd.Register()
+	if err != nil {
+		return err
+	}
+	s.HandleLeaderChange(isLeader)
+	leaderCh := s.discoverd.LeaderCh()
+
+	s.tickSyncJobs(30 * time.Second)
+	s.tickSyncFormations(time.Minute)
+	s.tickSyncHosts(10 * time.Second)
+
+	go s.RunPutJobs()
+
+	for {
+		select {
+		case <-s.stop:
+			log.Info("stopping scheduler loop")
+			close(s.putJobs)
+			return nil
+		case isLeader := <-leaderCh:
+			s.HandleLeaderChange(isLeader)
+			continue
+		default:
+		}
+
+		// Handle events that reconcile scheduler state with the cluster
+		select {
+		case req := <-s.placementRequests:
+			s.HandlePlacementRequest(req)
+			continue
+		case e := <-s.hostEvents:
+			s.HandleHostEvent(e)
+			continue
+		case <-s.hostChecks:
+			s.PerformHostChecks()
+			continue
+		case e := <-s.jobEvents:
+			s.HandleJobEvent(e)
+			continue
+		case f := <-s.formationEvents:
+			s.HandleFormationChange(f)
+			continue
+		default:
+		}
+
+		// Handle sync events
+		select {
+		case <-s.syncFormations:
+			s.SyncFormations()
+			continue
+		case <-s.syncJobs:
+			s.SyncJobs()
+			continue
+		case <-s.syncHosts:
+			s.SyncHosts()
+			continue
+		default:
+		}
+
+		// Finally, handle triggering cluster changes.
+		// Re-select on all the channels so we don't have to sleep nor spin
+		select {
+		case <-s.rectify:
+			s.HandleRectify()
+		case <-s.stop:
+			log.Info("stopping scheduler loop")
+			close(s.putJobs)
+			return nil
+		case isLeader := <-leaderCh:
+			s.HandleLeaderChange(isLeader)
+		case req := <-s.placementRequests:
+			s.HandlePlacementRequest(req)
+		case e := <-s.hostEvents:
+			s.HandleHostEvent(e)
+		case <-s.hostChecks:
+			s.PerformHostChecks()
+		case e := <-s.jobEvents:
+			s.HandleJobEvent(e)
+		case f := <-s.formationEvents:
+			s.HandleFormationChange(f)
+		case <-s.syncFormations:
+			s.SyncFormations()
+		case <-s.syncJobs:
+			s.SyncJobs()
+		case <-s.syncHosts:
+			s.SyncHosts()
+		case s.getJobs <- s.jobs:
+		case <-s.pause:
+			<-s.resume
+		}
+	}
+	return nil
+}
+
+func (s *Scheduler) IsLeader() bool {
+	return s.isLeader != nil && *s.isLeader
+}
+
+func (s *Scheduler) SyncJobs() (err error) {
+	log := s.logger.New("fn", "SyncJobs")
+	log.Info("syncing jobs")
+
+	defer func() {
+		if err != nil {
+			// try again soon
+			time.AfterFunc(100*time.Millisecond, s.triggerSyncJobs)
+		}
+	}()
+
+	// ensure we have accurate in-memory states for all cluster jobs
+	for id, host := range s.hosts {
+		jobs, err := host.client.ListJobs()
+		if err != nil {
+			log.Error("error getting host jobs", "host.id", id, "err", err)
+			return err
+		}
+
+		for _, job := range jobs {
+			s.handleActiveJob(&job)
+		}
+	}
+
+	// ensure that all starting or up jobs in the controller are still in
+	// those states
+	jobs, err := s.JobListActive()
+	if err != nil {
+		if err == controller.ErrNotFound {
+			// a 404 means the controller is a version behind the scheduler (which
+			// can happen during an update), just ignore and wait for the next sync
+			// when the controller may be updated to the correct version
+			log.Warn("skipping controller job sync, controller missing active job route")
+			return nil
+		}
+		log.Error("error getting controller active jobs", "err", err)
+		return err
+	}
+	for _, job := range jobs {
+		j, ok := s.jobs[job.UUID]
+		if !ok {
+			// the controller job is unknown, and since we are in sync with
+			// all the hosts, it can't be running so mark it as down
+			job.State = ct.JobStateDown
+			s.persistControllerJob(job)
+			continue
+		}
+
+		// persist the job if it has a different in-memory state
+		if job.State == ct.JobStateStarting && j.state != JobStateStarting || job.State == ct.JobStateUp && j.state != JobStateRunning {
+			s.persistJob(j)
+		}
+	}
+
+	return nil
+}
+
+func (s *Scheduler) SyncFormations() {
+	log := s.logger.New("fn", "SyncFormations")
+	log.Info("syncing formations")
+	defer log.Debug("formations synced")
+
+	formations, err := s.FormationListActive()
+	if err != nil {
+		log.Error("error getting active formations", "err", err)
+		return
+	}
+
+	active := make(map[utils.FormationKey]struct{}, len(formations))
+	for _, f := range formations {
+		active[utils.FormationKey{AppID: f.App.ID, ReleaseID: f.Release.ID}] = struct{}{}
+		s.handleFormation(f)
+	}
+
+	// check that all formations we think are active are still active
+	for _, f := range s.formations {
+		if _, ok := active[f.key()]; !ok && !f.GetProcesses().IsEmpty() {
+			log.Warn("formation should not be active, scaling down", "app.id", f.App.ID, "release.id", f.Release.ID)
+			f.Processes = nil
+			s.triggerRectify(f.key())
+		}
+	}
+}
+
+func (s *Scheduler) SyncHosts() (err error) {
+	log := s.logger.New("fn", "SyncHosts")
+	log.Info("syncing hosts")
+
+	defer func() {
+		if err != nil {
+			// try again soon
+			time.AfterFunc(100*time.Millisecond, s.triggerSyncHosts)
+		}
+	}()
+
+	hosts, err := s.Hosts()
+	if err != nil {
+		log.Error("error getting hosts", "err", err)
+		return err
+	}
+
+	known := make(map[string]struct{})
+	var followErr error
+	for _, host := range hosts {
+		known[host.ID()] = struct{}{}
+
+		h, err := s.followHost(host)
+		if err == nil {
+			// make sure no jobs are pending which needn't be
+			s.maybeStartPendingTagJobs(h)
+		} else {
+			log.Error("error following host", "host.id", host.ID(), "err", err)
+			// finish the sync before returning the error
+			followErr = err
+		}
+	}
+
+	// mark any hosts as unhealthy which are not returned from s.Hosts()
+	// and are not explicitly shutdown
+	for id, host := range s.hosts {
+		if _, ok := known[id]; !ok && !host.shutdown {
+			s.markHostAsUnhealthy(host)
+		}
+	}
+
+	if followErr != nil {
+		return followErr
+	}
+
+	// return an error to trigger another sync if no hosts were found
+	if len(hosts) == 0 {
+		log.Error(ErrNoHosts.Error())
+		return ErrNoHosts
+	}
+
+	return nil
+}
+
+func (s *Scheduler) HandleRectify() error {
+	for key := range s.rectifyBatch {
+		s.RectifyFormation(key)
+	}
+	s.rectifyBatch = make(map[utils.FormationKey]struct{})
+	return nil
+}
+
+func (s *Scheduler) RectifyFormation(key utils.FormationKey) {
+	if !s.IsLeader() {
+		return
+	}
+	defer s.logger.New("fn", "RectifyFormation").Debug("rectified formation", "key", key)
+
+	formation, ok := s.formations[key]
+	if !ok {
+		return
+	}
+
+	// stop surplus omni jobs first in case we need to reschedule them
+	// on other hosts
+	s.stopSurplusOmniJobs(formation)
+
+	// stop jobs with mismatched tags first in case we need to reschedule
+	// them on hosts with matching tags
+	s.stopJobsWithMismatchedTags(formation)
+
+	diff := s.formationDiff(formation)
+	if diff.IsEmpty() {
+		return
+	}
+	s.handleFormationDiff(formation, diff)
+}
+
+// stopSurplusOmniJobs stops surplus jobs which are running on a host which has
+// more than the expected number of omni jobs for a given type (this happens
+// for example when both the bootstrapper and scheduler are starting jobs and
+// distribute omni jobs unevenly)
+func (s *Scheduler) stopSurplusOmniJobs(formation *Formation) {
+	log := s.logger.New("fn", "stopSurplusOmniJobs")
+
+	for typ, proc := range formation.Release.Processes {
+		if !proc.Omni {
+			continue
+		}
+
+		// get a list of jobs per host so we can count them and
+		// potentially stop any surplus ones
+		hostJobs := make(map[string][]*Job)
+		for _, job := range s.jobs.WithFormationAndType(formation, typ) {
+			if job.IsRunning() {
+				hostJobs[job.HostID] = append(hostJobs[job.HostID], job)
+			}
+		}
+
+		// detect surplus jobs per host by comparing the expected count
+		// from the formation with the number of jobs currently running
+		// on that host
+		expected := formation.OriginalProcesses[typ]
+		var surplusJobs []*Job
+		for _, jobs := range hostJobs {
+			if diff := len(jobs) - expected; diff > 0 {
+				// add the most recent jobs which are at the start
+				// of the slice (WithFormationAndType returns them
+				// in reverse chronological order above)
+				surplusJobs = append(surplusJobs, jobs[0:diff]...)
+			}
+		}
+
+		if len(surplusJobs) == 0 {
+			continue
+		}
+
+		log.Info(fmt.Sprintf("detected %d surplus omni jobs", len(surplusJobs)), "type", typ)
+		for _, job := range surplusJobs {
+			s.stopJob(job)
+		}
+	}
+}
+
+// stopJobsWithMismatchedTags stops any running jobs whose tags do not match
+// those of the host they are running on (possible after either the host's tags
+// or the formation's tags are updated)
+func (s *Scheduler) stopJobsWithMismatchedTags(formation *Formation) {
+	log := s.logger.New("fn", "stopJobsWithMismatchedTags")
+	for _, job := range s.jobs {
+		if !job.IsInFormation(formation.key()) || !job.IsRunning() {
+			continue
+		}
+		host, ok := s.hosts[job.HostID]
+		if !ok {
+			continue
+		}
+		if job.TagsMatchHost(host) {
+			continue
+		}
+		log.Info("job has mismatched tags, stopping", "job.id", job.ID, "job.tags", job.Tags(), "host.id", host.ID, "host.tags", host.Tags)
+		s.stopJob(job)
+	}
+}
+
+// maybeStartPendingTagJobs starts any jobs which are pending due to not
+// matching tags of any hosts on the given host, which is expected to be
+// either a new host or a host whose tags have just changed
+func (s *Scheduler) maybeStartPendingTagJobs(host *Host) {
+	for id, job := range s.pendingTagJobs {
+		if job.TagsMatchHost(host) {
+			delete(s.pendingTagJobs, id)
+			go s.StartJob(job)
+		}
+	}
+}
+
+func (s *Scheduler) formationDiff(formation *Formation) Processes {
+	if formation == nil {
+		return nil
+	}
+	key := formation.key()
+	actual := s.jobs.GetProcesses(key)
+	diff := formation.Diff(actual)
+	if !diff.IsEmpty() {
+		log := s.logger.New("fn", "formationDiff", "app.id", key.AppID, "release.id", key.ReleaseID)
+		log.Info("expected different from actual", "expected", formation.Processes, "actual", actual, "diff", diff)
+	}
+	return diff
+}
+
+func (s *Scheduler) HandleFormationChange(ef *ct.ExpandedFormation) {
+	log := s.logger.New("fn", "HandleFormationChange", "app.id", ef.App.ID, "release.id", ef.Release.ID, "processes", ef.Processes)
+	log.Info("handling formation change")
+	defer log.Debug("formation change handled")
+	s.handleFormation(ef)
+}
+
+func (s *Scheduler) HandlePlacementRequest(req *PlacementRequest) {
+	if !s.IsLeader() {
+		req.Error(ErrNotLeader)
+		return
+	}
+
+	// don't attempt to place a job which is no longer pending, which could
+	// be the case either if the job has been marked as stopped, or AddJob
+	// failed in some way (e.g. a timeout) but the job did actually start
+	if req.Job.state != JobStatePending {
+		req.Error(ErrJobNotPending)
+		return
+	}
+
+	log := s.logger.New("fn", "HandlePlacementRequest", "app.id", req.Job.AppID, "release.id", req.Job.ReleaseID, "job.type", req.Job.Type, "job.tags", req.Job.Tags())
+	log.Info("handling placement request")
+
+	if len(s.hosts) == 0 {
+		req.Error(ErrNoHosts)
+		return
+	}
+
+	formation := req.Job.Formation
+	counts := s.jobs.GetHostJobCounts(formation.key(), req.Job.Type)
+	var minCount int = math.MaxInt32
+	for _, h := range s.SortedHosts() {
+		if h.shutdown {
+			continue
+		}
+		if !req.Job.TagsMatchHost(h) {
+			continue
+		}
+		count, ok := counts[h.ID]
+		if !ok || count == 0 {
+			req.Host = h
+			break
+		}
+		if count < minCount {
+			minCount = count
+			req.Host = h
+		}
+	}
+
+	// if we didn't pick a host, the job's tags don't match any hosts so
+	// add it to s.pendingTagJobs and return an error to cause the
+	// StartJob goroutine to stop trying to place the job
+	if req.Host == nil {
+		s.pendingTagJobs[req.Job.ID] = req.Job
+		req.Error(ErrNoHostsMatchTags)
+		return
+	}
+
+	if len(req.Job.Tags()) == 0 {
+		log.Info(fmt.Sprintf("placed job on host with least %s jobs", req.Job.Type), "host.id", req.Host.ID)
+	} else {
+		log.Info(fmt.Sprintf("placed job on host with matching tags and least %s jobs", req.Job.Type), "host.id", req.Host.ID, "host.tags", req.Host.Tags)
+	}
+
+	req.Config = jobConfig(req.Job, req.Host.ID)
+	req.Job.JobID = req.Config.ID
+	req.Job.HostID = req.Host.ID
+	req.Error(nil)
+}
+
+func (s *Scheduler) SortedHosts() sortHosts {
+	hosts := make(sortHosts, 0, len(s.hosts))
+	for _, host := range s.hosts {
+		hosts = append(hosts, host)
+	}
+	hosts.Sort()
+	return hosts
+}
+
+func (s *Scheduler) RunPutJobs() {
+	log := s.logger.New("fn", "RunPutJobs")
+	log.Info("starting job persistence loop")
+	strategy := attempt.Strategy{Delay: 100 * time.Millisecond, Total: time.Minute}
+	for job := range s.putJobs {
+		err := strategy.RunWithValidator(func() error {
+			return s.PutJob(job)
+		}, httphelper.IsRetryableError)
+		if err != nil {
+			log.Error("error persisting job", "job.id", job.ID, "job.state", job.State, "err", err)
+		}
+	}
+	log.Info("stopping job persistence loop")
+}
+
+func (s *Scheduler) HandleLeaderChange(isLeader bool) {
+	log := s.logger.New("fn", "HandleLeaderChange")
+	s.isLeader = &isLeader
+	if isLeader {
+		log.Info("handling leader promotion")
+		// ensure we are in sync and then rectify
+		s.SyncHosts()
+		s.SyncFormations()
+		s.SyncJobs()
+		s.rectifyAll()
+	} else {
+		log.Info("handling leader demotion")
+	}
+}
+
+func (s *Scheduler) handleFormationDiff(f *Formation, diff Processes) {
+	log := s.logger.New("fn", "handleFormationDiff", "app.id", f.App.ID, "release.id", f.Release.ID)
+	log.Info("formation in incorrect state", "diff", diff)
+	for typ, n := range diff {
+		if n > 0 {
+			log.Info(fmt.Sprintf("starting %d new %s jobs", n, typ))
+			for i := 0; i < n; i++ {
+				job := &Job{
+					ID:        s.generateJobUUID(),
+					Type:      typ,
+					AppID:     f.App.ID,
+					ReleaseID: f.Release.ID,
+					Formation: f,
+					startedAt: time.Now(),
+					state:     JobStatePending,
+				}
+				s.jobs.Add(job)
+
+				// persist the job so that it appears as pending in the database
+				s.persistJob(job)
+
+				go s.StartJob(job)
+			}
+		} else if n < 0 {
+			log.Info(fmt.Sprintf("stopping %d %s jobs", -n, typ))
+			for i := 0; i < -n; i++ {
+				s.stopJobOfType(f, typ)
+			}
+		}
+	}
+}
+
+// activeFormationCount returns the number of formations which have running
+// jobs for the given app
+func (s *Scheduler) activeFormationCount(appID string) int {
+	activeReleases := make(map[string]struct{})
+	for _, job := range s.jobs {
+		if job.IsRunning() && job.IsInApp(appID) {
+			activeReleases[job.Formation.Release.ID] = struct{}{}
+		}
+	}
+	return len(activeReleases)
+}
+
+func (s *Scheduler) StartJob(job *Job) {
+	log := s.logger.New("fn", "StartJob", "app.id", job.AppID, "release.id", job.ReleaseID, "job.type", job.Type)
+	log.Info("starting job")
+
+	for attempt := 0; ; attempt++ {
+		if attempt > 0 {
+			// when making multiple attempts, backoff in increments
+			// of 500ms (capped at 30s)
+			delay := 500 * time.Millisecond * time.Duration(attempt)
+			if delay > 30*time.Second {
+				delay = 30 * time.Second
+			}
+			log.Info(fmt.Sprintf("failed to start job after %d attempts, waiting %s before trying again", attempt, delay))
+			time.Sleep(delay)
+		}
+
+		log.Info("placing job in the cluster")
+		config, host, err := s.PlaceJob(job)
+		if err == ErrNotLeader {
+			log.Warn("not starting job as not leader")
+			return
+		} else if err == ErrNoHostsMatchTags {
+			log.Warn("unable to place job as tags don't match any hosts")
+			return
+		} else if err == ErrJobNotPending {
+			log.Warn("unable to place job as it is no longer pending")
+			return
+		} else if err != nil {
+			log.Error("error placing job in the cluster", "err", err)
+			continue
+		}
+
+		if job.needsVolume() {
+			log.Info("provisioning data volume", "host.id", host.ID)
+			if err := utils.ProvisionVolume(host.client, config); err != nil {
+				log.Error("error provisioning volume", "err", err)
+				continue
+			}
+		}
+
+		log.Info("adding job to the cluster", "host.id", host.ID, "job.id", config.ID)
+		if err := host.client.AddJob(config); err != nil {
+			log.Error("error adding job to the cluster", "err", err)
+			continue
+		}
+		return
+	}
+}
+
+// PlacementRequest is sent from a StartJob goroutine to the main scheduler
+// loop to place the job in the cluster (i.e. select a host and generate config
+// for the job)
+type PlacementRequest struct {
+	Job    *Job
+	Config *host.Job
+	Host   *Host
+	Err    chan error
+}
+
+func (r *PlacementRequest) Error(err error) {
+	r.Err <- err
+}
+
+func (s *Scheduler) PlaceJob(job *Job) (*host.Job, *Host, error) {
+	req := &PlacementRequest{
+		Job: job,
+		Err: make(chan error),
+	}
+	s.placementRequests <- req
+	return req.Config, req.Host, <-req.Err
+}
+
+func (s *Scheduler) followHost(h utils.HostClient) (*Host, error) {
+	if host, ok := s.hosts[h.ID()]; ok {
+		return host, nil
+	}
+
+	host := NewHost(h, s.logger)
+	jobs, err := host.StreamEventsTo(s.jobEvents)
+	if err != nil {
+		return nil, err
+	}
+	s.hosts[host.ID] = host
+
+	for _, job := range jobs {
+		s.handleActiveJob(&job)
+	}
+
+	s.triggerSyncFormations()
+
+	return host, nil
+}
+
+func (s *Scheduler) unfollowHost(host *Host) {
+	log := s.logger.New("fn", "unfollowHost", "host.id", host.ID)
+	log.Info("unfollowing host")
+	host.Close()
+	delete(s.hosts, host.ID)
+
+	// rectify the omni job counts so that when omni jobs are marked as
+	// stopped, they are not restarted
+	for _, formation := range s.formations {
+		formation.RectifyOmni(s.activeHostCount())
+	}
+
+	for _, job := range s.jobs {
+		if job.HostID == host.ID && job.state != JobStateStopped {
+			log.Info("removing job", "job.id", job.JobID)
+			s.markAsStopped(job)
+		}
+	}
+
+	s.triggerSyncFormations()
+}
+
+func (s *Scheduler) markHostAsUnhealthy(host *Host) {
+	s.logger.Warn("host service is down, marking as unhealthy and triggering host checks", "host.id", host.ID)
+	host.healthy = false
+	s.triggerHostChecks()
+}
+
+func (s *Scheduler) HandleHostEvent(e *discoverd.Event) {
+	log := s.logger.New("fn", "HandleHostEvent", "event.type", e.Kind)
+	log.Info("handling host event")
+
+	switch e.Kind {
+	case discoverd.EventKindUp:
+		s.handleNewHost(e.Instance.Meta["id"])
+	case discoverd.EventKindUpdate:
+		id := e.Instance.Meta["id"]
+		_, isShutdown := e.Instance.Meta["shutdown"]
+
+		// if we haven't seen this host before, handle it as new
+		// (provided it is not shutdown)
+		host, ok := s.hosts[id]
+		if !ok {
+			if !isShutdown {
+				s.handleNewHost(id)
+			}
+			return
+		}
+
+		// if the host is shutdown, just mark it as shutdown and return
+		// rather than explicitly unfollowing to avoid a race where
+		// SyncHosts could run before we get the down event, thus
+		// re-following a host we know is shutdown (the host will be
+		// unfollowed when we get the eventual down event)
+		if isShutdown {
+			log.Info("marking host as shutdown", "host.id", host.ID)
+			host.shutdown = true
+
+			// rectify the omni job counts now the host is shutdown
+			// so that when down events are received for omni jobs,
+			// they are not restarted
+			for _, formation := range s.formations {
+				formation.RectifyOmni(s.activeHostCount())
+			}
+
+			return
+		}
+
+		// if the host's tags have changed, rectify all formations so
+		// that any running jobs with mismatched tags are stopped, and
+		// also try to start pending jobs in case tags now match
+		tags := cluster.HostTagsFromMeta(e.Instance.Meta)
+		if !host.TagsEqual(tags) {
+			log.Info("host tags changed", "host.id", id, "from", host.Tags, "to", tags)
+			host.Tags = tags
+			s.rectifyAll()
+			s.maybeStartPendingTagJobs(host)
+		}
+	case discoverd.EventKindDown:
+		id := e.Instance.Meta["id"]
+		log = log.New("host.id", id)
+		host, ok := s.hosts[id]
+		if !ok {
+			log.Warn("ignoring host down event, unknown host")
+			return
+		}
+		if host.shutdown {
+			s.unfollowHost(host)
+		} else {
+			s.markHostAsUnhealthy(host)
+		}
+	}
+}
+
+func (s *Scheduler) handleNewHost(id string) {
+	log := s.logger.New("fn", "handleNewHost", "host.id", id)
+	log.Info("host is up, starting job event stream")
+	h, err := s.Host(id)
+	if err != nil {
+		log.Error("error creating host client", "err", err)
+		return
+	}
+
+	host, err := s.followHost(h)
+	if err != nil {
+		// just log the error, following will be retried in SyncHosts
+		log.Error("error following host", "host.id", id, "err", err)
+		return
+	}
+
+	// we have a new host which may now match the tags of some pending jobs
+	// so try to start them
+	s.maybeStartPendingTagJobs(host)
+}
+
+// activeHostCount returns the number of active hosts (i.e. all hosts which
+// are not shutting down) and is used to determine how many omni jobs should
+// be running when calling formation.RectifyOmni
+func (s *Scheduler) activeHostCount() int {
+	count := 0
+	for _, host := range s.hosts {
+		if !host.shutdown {
+			count++
+		}
+	}
+	return count
+}
+
+func (s *Scheduler) PerformHostChecks() {
+	log := s.logger.New("fn", "PerformHostChecks")
+	log.Info("performing host checks")
+
+	allHealthy := true
+
+	for id, host := range s.hosts {
+		if host.healthy {
+			continue
+		}
+
+		log := log.New("host.id", id)
+		log.Info("getting status of unhealthy host")
+		if _, err := host.client.GetStatus(); err == nil {
+			// assume the host is healthy if we can get its status
+			log.Info("host is now healthy")
+			host.healthy = true
+			host.checks = 0
+			continue
+		}
+
+		host.checks++
+		if host.checks >= s.maxHostChecks {
+			log.Warn(fmt.Sprintf("host unhealthy for %d consecutive checks, unfollowing", s.maxHostChecks))
+			s.unfollowHost(host)
+			continue
+		}
+
+		allHealthy = false
+	}
+
+	if !allHealthy {
+		time.AfterFunc(time.Second, s.triggerHostChecks)
+	}
+}
+
+func (s *Scheduler) HandleJobEvent(e *host.Event) {
+	log := s.logger.New("fn", "HandleJobEvent", "job.id", e.JobID, "event.type", e.Event)
+
+	log.Info("handling job event")
+	job := s.handleActiveJob(e.Job)
+	switch e.Event {
+	case host.JobEventStart:
+		log.Debug("handled job start event", "job", job)
+	case host.JobEventStop:
+		log.Debug("handled job stop event", "job", job)
+	}
+}
+
+func (s *Scheduler) handleActiveJob(activeJob *host.ActiveJob) *Job {
+	hostJob := activeJob.Job
+	appID := hostJob.Metadata["flynn-controller.app"]
+	releaseID := hostJob.Metadata["flynn-controller.release"]
+
+	// if job has no app metadata, just ignore it
+	if appID == "" || releaseID == "" {
+		return nil
+	}
+
+	jobType := hostJob.Metadata["flynn-controller.type"]
+
+	// lookup the job using the UUID part of the job ID (see the
+	// description of Job.ID)
+	id, err := cluster.ExtractUUID(hostJob.ID)
+	if err != nil {
+		// job has invalid ID, ignore (very unexpected)
+		return nil
+	}
+	job, ok := s.jobs[id]
+	if !ok {
+		// this is the first time we have seen the job so
+		// add it to s.jobs
+		job = &Job{
+			ID:        id,
+			Type:      jobType,
+			AppID:     appID,
+			ReleaseID: releaseID,
+			HostID:    activeJob.HostID,
+			JobID:     hostJob.ID,
+		}
+		s.jobs.Add(job)
+	}
+
+	job.startedAt = activeJob.StartedAt
+	job.metadata = hostJob.Metadata
+	job.exitStatus = activeJob.ExitStatus
+	job.hostError = activeJob.Error
+
+	s.handleJobStatus(job, activeJob.Status)
+
+	return job
+}
+
+func (s *Scheduler) markAsStopped(job *Job) {
+	s.handleJobStatus(job, host.StatusDone)
+}
+
+func (s *Scheduler) handleJobStatus(job *Job, status host.JobStatus) {
+	log := s.logger.New("fn", "handleJobStatus", "job.id", job.JobID, "app.id", job.AppID, "release.id", job.ReleaseID, "job.type", job.Type)
+
+	// update the job's state, keeping a reference to the previous state
+	previousState := job.state
+	switch status {
+	case host.StatusStarting:
+		job.state = JobStateStarting
+	case host.StatusRunning:
+		job.state = JobStateRunning
+	case host.StatusDone, host.StatusCrashed, host.StatusFailed:
+		job.state = JobStateStopped
+	}
+
+	// if the job's state has changed, persist it to the controller
+	if job.state != previousState {
+		log.Info("handling job status change", "from", previousState, "to", job.state)
+		s.persistJob(job)
+	}
+
+	// ensure jobs started as part of a formation change have a known formation
+	if job.metadata["flynn-controller.formation"] == "true" && job.Formation == nil {
+		formation := s.formations.Get(job.AppID, job.ReleaseID)
+		if formation == nil {
+			ef, err := s.GetExpandedFormation(job.AppID, job.ReleaseID)
+			if err != nil {
+				// if we can't find the formation, track it as a formation-less
+				// job so that it will be handled if we find the formation from
+				// a future sync
+				key := utils.FormationKey{AppID: job.AppID, ReleaseID: job.ReleaseID}
+				jobs, ok := s.formationlessJobs[key]
+				if !ok {
+					jobs = make(map[string]*Job)
+					s.formationlessJobs[key] = jobs
+				}
+				jobs[job.ID] = job
+
+				// only log an error if the state changed (so we don't
+				// keep logging it in periodic SyncJobs calls)
+				if job.state != previousState {
+					log.Error("error looking up formation for job", "err", err)
+				}
+				return
+			}
+			formation = s.handleFormation(ef)
+		}
+		job.Formation = formation
+	}
+
+	// if the job was not started as part of a formation, then we are done
+	if job.Formation == nil {
+		return
+	}
+
+	// if we are not the leader, then we are done
+	if !s.IsLeader() {
+		return
+	}
+
+	// if the job has just transitioned to the stopped state, check if we
+	// expect it to be running, and if we do, restart it
+	if previousState != JobStateStopped && job.state == JobStateStopped {
+		if diff := s.formationDiff(job.Formation); diff[job.Type] > 0 {
+			s.restartJob(job)
+		}
+	}
+
+	// trigger a rectify for the job's formation in case we have too many
+	// jobs of the given type and we need to stop some
+	s.triggerRectify(job.Formation.key())
+}
+
+func (s *Scheduler) persistJob(job *Job) {
+	s.persistControllerJob(job.ControllerJob())
+}
+
+// persistControllerJob triggers the RunPutJobs goroutine to persist the job to
+// the controller, but only if the scheduler either doesn't know the current
+// leader (e.g. if this is the first scheduler to start) or it itself is the
+// current leader to avoid states jumping back and forward in the database
+func (s *Scheduler) persistControllerJob(job *ct.Job) {
+	if s.isLeader == nil || *s.isLeader {
+		s.putJobs <- job
+	}
+}
+
+func (s *Scheduler) handleFormation(ef *ct.ExpandedFormation) (formation *Formation) {
+	log := s.logger.New("fn", "handleFormation", "app.id", ef.App.ID, "release.id", ef.Release.ID)
+
+	defer func() {
+		// ensure the formation has the correct omni job counts
+		if formation.RectifyOmni(s.activeHostCount()) {
+			s.triggerRectify(formation.key())
+		}
+
+		// update any formation-less jobs
+		if jobs, ok := s.formationlessJobs[formation.key()]; ok {
+			for _, job := range jobs {
+				job.Formation = formation
+			}
+			s.triggerRectify(formation.key())
+			delete(s.formationlessJobs, formation.key())
+		}
+	}()
+
+	formation = s.formations.Get(ef.App.ID, ef.Release.ID)
+	if formation == nil {
+		log.Info("adding new formation", "processes", ef.Processes)
+		formation = s.formations.Add(NewFormation(ef))
+	} else {
+		diff := Processes(ef.Processes).Diff(formation.OriginalProcesses)
+		if diff.IsEmpty() && utils.FormationTagsEqual(formation.Tags, ef.Tags) {
+			return
+		}
+
+		// do not completely scale down critical apps for which this is the only active formation
+		// (this prevents for example scaling down discoverd which breaks the cluster)
+		if diff.IsScaleDownOf(formation.OriginalProcesses) && formation.App.Critical() && s.activeFormationCount(formation.App.ID) < 2 {
+			log.Info("refusing to scale down critical app")
+			return
+		}
+
+		log.Info("updating processes and tags of existing formation", "processes", ef.Processes, "tags", ef.Tags)
+		formation.Tags = ef.Tags
+		formation.SetProcesses(ef.Processes)
+	}
+	s.triggerRectify(formation.key())
+	return
+}
+
+func (s *Scheduler) triggerRectify(key utils.FormationKey) {
+	s.rectifyBatch[key] = struct{}{}
+	select {
+	case s.rectify <- struct{}{}:
+	default:
+	}
+}
+
+func (s *Scheduler) stopJobOfType(f *Formation, typ string) (err error) {
+	log := s.logger.New("fn", "stopJobOfType", "app.id", f.App.ID, "release.id", f.Release.ID, "job.type", typ)
+	log.Info(fmt.Sprintf("stopping %s job", typ))
+
+	defer func() {
+		if err != nil {
+			log.Error(fmt.Sprintf("error stopping %s job", typ), "err", err)
+		}
+	}()
+
+	job, err := s.findJobToStop(f, typ)
+	if err != nil {
+		return err
+	}
+	return s.stopJob(job)
+}
+
+func (s *Scheduler) stopJob(job *Job) error {
+	log := s.logger.New("fn", "stopJob", "job.id", job.ID, "job.type", job.Type, "job.state", job.state)
+	log.Info("stopping job")
+
+	switch job.state {
+	case JobStatePending:
+		// If it's a pending job with a HostID, then it has been
+		// placed in the cluster but we are yet to receive a
+		// "starting" event, so we need to explicitly stop it.
+		if job.HostID != "" {
+			break
+		}
+
+		// If it's a pending job which hasn't been placed, we
+		// are either in the process of starting it, or it is
+		// scheduled to start in the future.
+		//
+		// Jobs being actively started can just be marked as
+		// stopped, causing the StartJob goroutine to fail the
+		// next time it tries to place the job.
+		//
+		// Scheduled jobs need the restart timer cancelling, but
+		// also marked as stopped so that if the timer has already
+		// fired, it won't actually be placed in the cluster.
+		log.Info("stopping pending job", "job.id", job.ID)
+		job.state = JobStateStopped
+		s.persistJob(job)
+		if job.restartTimer != nil {
+			job.restartTimer.Stop()
+		}
+		return nil
+	case JobStateStopped:
+		// job already stopped, nothing to do
+		return nil
+	}
+
+	host, ok := s.hosts[job.HostID]
+	if !ok {
+		return fmt.Errorf("unknown host: %q", job.HostID)
+	}
+
+	log.Info("requesting host to stop job", "host.id", job.HostID)
+	job.state = JobStateStopping
+	go func() {
+		// host.StopJob can block, so run it in a goroutine
+		if err := host.client.StopJob(job.JobID); err != nil {
+			log.Error("error requesting host to stop job", "err", err)
+		}
+	}()
+	return nil
+}
+
+// findJobToStop finds a job from the given formation and type which should be
+// stopped, choosing pending jobs if present, and the most recently started job
+// otherwise
+func (s *Scheduler) findJobToStop(f *Formation, typ string) (*Job, error) {
+	var runningJob *Job
+	for _, job := range s.jobs.WithFormationAndType(f, typ) {
+		switch job.state {
+		case JobStatePending:
+			return job, nil
+		case JobStateStarting, JobStateRunning:
+			// if the job is on a host which is shutting down,
+			// return it (it is about to stop anyway, and this
+			// avoids a race where modifying the omni counts to
+			// remove a shut down host could cause a subsequent
+			// rectify to stop a job on an active host before the
+			// shutting down host's job has stopped)
+			if host, ok := s.hosts[job.HostID]; ok && host.shutdown {
+				return job, nil
+			}
+
+			// return the most recent job (which is the first in
+			// the slice we are iterating over) if none of the
+			// above cases match
+			if runningJob == nil {
+				runningJob = job
+			}
+		}
+	}
+	if runningJob == nil {
+		return nil, fmt.Errorf("no %s jobs running", typ)
+	}
+	return runningJob, nil
+}
+
+func jobConfig(job *Job, hostID string) *host.Job {
+	return utils.JobConfig(job.Formation.ExpandedFormation, job.Type, hostID, job.ID)
+}
+
+func (s *Scheduler) Pause() {
+	s.logger.Info("pausing scheduler")
+	s.pause <- struct{}{}
+	s.logger.Info("scheduler paused")
+}
+
+func (s *Scheduler) Resume() {
+	s.logger.Info("resuming scheduler")
+	s.resume <- struct{}{}
+	s.logger.Info("scheduler resumed")
+}
+
+func (s *Scheduler) Stop() error {
+	log := s.logger.New("fn", "Stop")
+	log.Info("stopping scheduler loop")
+	s.stopOnce.Do(func() {
+		close(s.stop)
+	})
+	return nil
+}
+
+func (s *Scheduler) Jobs() map[string]*Job {
+	return <-s.getJobs
+}
+
+func (s *Scheduler) RunningJobs() map[string]*Job {
+	jobs := s.Jobs()
+	runningJobs := make(map[string]*Job, len(jobs))
+	for id, j := range jobs {
+		if j.IsRunning() {
+			runningJobs[id] = j
+		}
+	}
+	return runningJobs
+}
+
+func (s *Scheduler) restartJob(job *Job) {
+	restarts := job.restarts
+	// reset the restart count if it has been running for longer than the
+	// back off period
+	if !job.startedAt.IsZero() && job.startedAt.Before(time.Now().Add(-s.backoffPeriod)) {
+		restarts = 0
+	}
+	backoff := s.getBackoffDuration(restarts)
+
+	// create a new job so its state is tracked separately from the job
+	// it is replacing
+	newJob := &Job{
+		ID:        s.generateJobUUID(),
+		Type:      job.Type,
+		AppID:     job.AppID,
+		ReleaseID: job.ReleaseID,
+		Formation: job.Formation,
+		runAt:     typeconv.TimePtr(time.Now().Add(backoff)),
+		startedAt: time.Now(),
+		state:     JobStatePending,
+		restarts:  restarts + 1,
+	}
+	s.jobs.Add(newJob)
+
+	// persist the job so that it appears as pending in the database
+	s.persistJob(newJob)
+
+	s.logger.Info("scheduling job restart", "fn", "restartJob", "old_job.id", job.ID, "new_job.id", newJob.ID, "attempts", newJob.restarts, "delay", backoff)
+	newJob.restartTimer = time.AfterFunc(backoff, func() { s.StartJob(newJob) })
+}
+
+func (s *Scheduler) getBackoffDuration(restarts uint) time.Duration {
+	multiplier := 32 // max multiplier
+	if restarts < 6 {
+		// 2^(restarts - 1), or 0 if restarts == 0
+		multiplier = (1 << restarts) >> 1
+	}
+	return s.backoffPeriod * time.Duration(multiplier)
+}
+
+func (s *Scheduler) startHTTPServer(port string) {
+	log := s.logger.New("fn", "startHTTPServer")
+	status.AddHandler(status.HealthyHandler)
+	addr := ":" + port
+	log.Info("serving HTTP requests", "addr", addr)
+	err := http.ListenAndServe(":"+port, nil)
+	if err != nil {
+		log.Error("error serving HTTP requests", "err", err)
+		s.Stop()
+	}
+}
+
+func (s *Scheduler) tickSyncJobs(d time.Duration) {
+	s.logger.Info("starting sync jobs ticker", "duration", d)
+	go func() {
+		for range time.Tick(d) {
+			s.triggerSyncJobs()
+		}
+	}()
+}
+
+func (s *Scheduler) tickSyncFormations(d time.Duration) {
+	s.logger.Info("starting sync formations ticker", "duration", d)
+	go func() {
+		for range time.Tick(d) {
+			s.triggerSyncFormations()
+		}
+	}()
+}
+
+func (s *Scheduler) tickSyncHosts(d time.Duration) {
+	s.logger.Info("starting sync hosts ticker", "duration", d)
+	go func() {
+		for range time.Tick(d) {
+			s.triggerSyncHosts()
+		}
+	}()
+}
+
+func (s *Scheduler) rectifyAll() {
+	for key := range s.formations {
+		s.triggerRectify(key)
+	}
+}
+
+func (s *Scheduler) triggerSyncJobs() {
+	select {
+	case s.syncJobs <- struct{}{}:
+	default:
+	}
+}
+
+func (s *Scheduler) triggerSyncFormations() {
+	select {
+	case s.syncFormations <- struct{}{}:
+	default:
+	}
+}
+
+func (s *Scheduler) triggerSyncHosts() {
+	select {
+	case s.syncHosts <- struct{}{}:
+	default:
+	}
+}
+
+func (s *Scheduler) triggerHostChecks() {
+	select {
+	case s.hostChecks <- struct{}{}:
+	default:
+	}
+}
+
+func getBackoffPeriod() time.Duration {
+	backoffPeriod := 10 * time.Minute
+
+	if period := os.Getenv("BACKOFF_PERIOD"); period != "" {
+		p, err := time.ParseDuration(period)
+		if err == nil {
+			backoffPeriod = p
+		}
+	}
+
+	return backoffPeriod
+}
