@@ -1,0 +1,49 @@
+hash: 0e5a837f0b6accd60ab69e9e3e02a89da98b1e012e9dc5c7f701398a50765971
+updated: 2016-05-29T12:54:10.989931083-06:00
+imports:
+- name: github.com/bgentry/speakeasy
+  version: e1439544d8ecd0f3e9373a636d447668096a8f81
+- name: github.com/codegangsta/cli
+  version: 9a18ffad6c548ca4d458d4c30a8aa4d181cf92fa
+- name: github.com/eldarion-gondor/gondor-go
+  version: 234469a1898af4d4344f6ad087b3149ef07dfd2b
+  subpackages:
+  - lib
+- name: github.com/eldarion-gondor/piper
+  version: 18d30ae04448dde1f950359433a2886736a7c915
+- name: github.com/flynn/flynn
+  version: 5ac49d950520b0a70dad575451b2fd546ef0811f
+  subpackages:
+  - pkg/attempt
+- name: github.com/gorilla/websocket
+  version: afffb151969cb38ce452b0e1b8d20cd91fe7cd45
+- name: github.com/inconshreveable/go-update
+  version: 8152e7eb6ccf8679a64582a66b78519688d156ad
+  subpackages:
+  - internal/binarydist
+  - internal/osext
+- name: github.com/kr/pty
+  version: 0467868096dbfab4b683e41dd7aaba1c12363233
+- name: github.com/mattn/go-runewidth
+  version: d6bea18f789704b5f83375793155289da36a3c7f
+- name: github.com/mgutz/ansi
+  version: c286dcecd19ff979eeb73ea444e479b903f2cfcb
+- name: github.com/mitchellh/go-homedir
+  version: 981ab348d865cf048eb7d17e78ac7192632d8415
+- name: github.com/olekukonko/tablewriter
+  version: 8d0265a48283795806b872b4728c67bf5c777f20
+- name: github.com/pivotal-golang/bytefmt
+  version: 263ce04fc1d71bc7d50c241293488b3f54c779e5
+- name: github.com/skratchdot/open-golang
+  version: 75fb7ed4208cf72d323d7d02fd1a5964a7a9073c
+  subpackages:
+  - open
+- name: github.com/tj/go-spin
+  version: 866762925be273d8db6a8b816f359ca41d61bcdb
+- name: golang.org/x/crypto
+  version: 5bcd134fee4dd1475da17714aac19c0aa0142e2f
+  subpackages:
+  - ssh/terminal
+- name: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
+devImports: []

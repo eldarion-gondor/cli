@@ -1,0 +1,24 @@
+package: github.com/eldarion-gondor/cli
+import:
+- package: github.com/bgentry/speakeasy
+- package: github.com/codegangsta/cli
+- package: github.com/eldarion-gondor/gondor-go
+  subpackages:
+  - lib
+- package: github.com/eldarion-gondor/piper
+- package: github.com/flynn/flynn
+  subpackages:
+  - pkg/attempt
+- package: github.com/inconshreveable/go-update
+- package: github.com/mgutz/ansi
+- package: github.com/mitchellh/go-homedir
+- package: github.com/olekukonko/tablewriter
+- package: github.com/pivotal-golang/bytefmt
+- package: github.com/skratchdot/open-golang
+  subpackages:
+  - open
+- package: github.com/tj/go-spin
+- package: golang.org/x/crypto
+  subpackages:
+  - ssh/terminal
+- package: gopkg.in/yaml.v2
