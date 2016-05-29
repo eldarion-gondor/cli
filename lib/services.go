@@ -174,3 +174,78 @@ func servicesRestartCmd(c *CLI, ctx *cli.Context) {
 	}
 	success(fmt.Sprintf("%s service has been restarted.", name))
 }
+
+func servicesConfigGetCmd(c *CLI, ctx *cli.Context) {
+	usage := func(msg string) {
+		fmt.Printf("Usage: %s services config get <name> <attribute>\n", c.Name)
+		fatal(msg)
+	}
+	if len(ctx.Args()) == 0 {
+		usage("too few arguments")
+	}
+	attribute := ctx.Args().Get(1)
+	if attribute == "" {
+		usage("too few arguments")
+	}
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
+	name := ctx.Args()[0]
+	service, err := api.Services.Get(*instance.URL, name)
+	if err != nil {
+		fatal(err.Error())
+	}
+	switch attribute {
+	case "image":
+		fmt.Println(*service.Image)
+		break
+	default:
+		fatal(fmt.Sprintf("unknown service attribute %q", attribute))
+	}
+}
+
+func servicesConfigSetCmd(c *CLI, ctx *cli.Context) {
+	usage := func(msg string) {
+		fmt.Printf("Usage: %s services config set <name> <attribute> <value>\n", c.Name)
+		fatal(msg)
+	}
+	if len(ctx.Args()) == 0 {
+		usage("too few arguments")
+	}
+	attribute := ctx.Args().Get(1)
+	if attribute == "" {
+		usage("too few arguments")
+	}
+	value := ctx.Args().Get(2)
+	if attribute == "" {
+		usage("too few arguments")
+	}
+	api := c.GetAPIClient(ctx)
+	instance := c.GetInstance(ctx, nil)
+	name := ctx.Args()[0]
+	service, err := api.Services.Get(*instance.URL, name)
+	if err != nil {
+		fatal(err.Error())
+	}
+	var changed bool
+	changedService := gondor.Service{
+		URL: service.URL,
+	}
+	switch attribute {
+	case "image":
+		if *service.Image != value {
+			changedService.Image = &value
+			changed = true
+		}
+		break
+	default:
+		fatal(fmt.Sprintf("unknown service attribute %q", attribute))
+	}
+	if !changed {
+		fmt.Printf("No changes detected.")
+		os.Exit(0)
+	}
+	if err := api.Services.Update(changedService); err != nil {
+		fatal(fmt.Sprintf("configuring service %q: %v", name, err))
+	}
+	success(fmt.Sprintf("%s service has been configured.", name))
+}

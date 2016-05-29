@@ -14,6 +14,7 @@ type Service struct {
 	Instance *string           `json:"instance,omitempty"`
 	Name     *string           `json:"name,omitempty"`
 	Kind     *string           `json:"kind,omitempty"`
+	Image    *string           `json:"image,omitempty"`
 	Replicas *int              `json:"replicas,omitempty"`
 	State    *string           `json:"state,omitempty"`
 	Env      map[string]string `json:"env,omitempty"`

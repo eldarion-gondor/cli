@@ -453,6 +453,29 @@ func (c *CLI) Run() {
 					Action: c.cmd(c.stdCmd(servicesListCmd)),
 				},
 				{
+					Name:  "config",
+					Usage: "",
+					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name:  "instance",
+							Value: "",
+							Usage: "instance label",
+						},
+					},
+					Subcommands: []cli.Command{
+						{
+							Name:   "get",
+							Usage:  "",
+							Action: c.cmd(c.stdCmd(servicesConfigGetCmd)),
+						},
+						{
+							Name:   "set",
+							Usage:  "",
+							Action: c.cmd(c.stdCmd(servicesConfigSetCmd)),
+						},
+					},
+				},
+				{
 					Name:  "delete",
 					Usage: "",
 					Flags: []cli.Flag{
