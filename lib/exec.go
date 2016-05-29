@@ -2,7 +2,6 @@ package gondorcli
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,7 +20,7 @@ type remoteExec struct {
 	httpClient    *http.Client
 	tlsConfig     *tls.Config
 	showAttaching bool
-	callback      func(bool, error)
+	callback      func(error)
 }
 
 func (re *remoteExec) execute() int {
