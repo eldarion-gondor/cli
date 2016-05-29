@@ -32,9 +32,5 @@ func runCmd(c *CLI, ctx *cli.Context) {
 		tlsConfig:     c.GetTLSConfig(ctx),
 		showAttaching: true,
 	}
-	exitCode, err := re.execute()
-	if err != nil {
-		fatal(err.Error())
-	}
-	os.Exit(exitCode)
+	os.Exit(re.execute())
 }

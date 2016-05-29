@@ -24,9 +24,9 @@ type remoteExec struct {
 	callback      func(bool, error)
 }
 
-func (re *remoteExec) execute() (int, error) {
+func (re *remoteExec) execute() int {
 	if re.callback == nil {
-		re.callback = func(ok bool, err error) {
+		re.callback = func(err error) {
 			if err != nil {
 				failure(err.Error())
 			}
@@ -74,14 +74,14 @@ func (re *remoteExec) execute() (int, error) {
 		if resp.StatusCode == 200 {
 			return nil
 		}
-		return errors.New("non-200 response")
+		return fmt.Errorf("http error %s", resp.Status)
 	})); err != nil {
 		done <- struct{}{}
 		if re.showAttaching && showIndicator {
 			fmt.Fprintf(outs, "\r\033[36mAttaching...\033[m failed\n")
 		}
-		re.callback(false, nil)
-		return 1, err
+		re.callback(err)
+		return 1
 	}
 	return func() int {
 		opts := piper.Opts{}
@@ -116,19 +116,19 @@ func (re *remoteExec) execute() (int, error) {
 			if re.showAttaching && showIndicator {
 				fmt.Fprintf(outs, "\r\033[36mAttaching...\033[m error\n")
 			}
-			re.callback(false, err)
+			re.callback(err)
 			return 1
 		}
 		done <- struct{}{}
 		if re.showAttaching && showIndicator {
 			fmt.Fprintf(outs, "\r\033[36mAttaching...\033[m ok\n")
 		}
-		re.callback(true, nil)
+		re.callback(nil)
 		exitCode, err := pipe.Interact()
 		if err != nil {
 			failure(err.Error())
 			return 1
 		}
 		return exitCode
-	}(), nil
+	}()
 }

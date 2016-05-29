@@ -117,25 +117,17 @@ func deployCmd(c *CLI, ctx *cli.Context) {
 		enableTty:  false,
 		httpClient: c.GetHttpClient(ctx),
 		tlsConfig:  c.GetTLSConfig(ctx),
-		callback: func(ok bool, err error) {
+		callback: func(err error) {
 			if err != nil {
-				fmt.Println("error")
-				fmt.Printf("       %s\n", err)
-				cleanup(nil)
-			}
-			if !ok {
 				fmt.Println("failed")
+				fmt.Printf("       %s\n", err)
 				cleanup(nil)
 			}
 			fmt.Println("ok")
 		},
 	}
 	fmt.Printf("-----> Attaching to build process... ")
-	exitCode, err := re.execute()
-	if err != nil {
-		fatal(err.Error())
-	}
-	if exitCode > 0 {
+	if exitCode := re.execute(); exitCode > 0 {
 		os.Exit(exitCode)
 	}
 	// 3. create a deployment for the instance pointed at the release

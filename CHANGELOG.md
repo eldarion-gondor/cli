@@ -5,6 +5,7 @@
 ### Bug fixes
 
 * fixed branch mapping when branch contains a slash
+* fixed exec error handling
 
 ## 0.8.2
 
