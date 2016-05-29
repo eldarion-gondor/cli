@@ -7,9 +7,9 @@ import (
 	"github.com/mgutz/ansi"
 )
 
-var successize func(string) string = ansi.ColorFunc("green+b")
-var errize func(string) string = ansi.ColorFunc("red+b")
-var heyYou func(string) string = ansi.ColorFunc("yellow+b")
+var successize = ansi.ColorFunc("green+b")
+var errize = ansi.ColorFunc("red+b")
+var heyYou = ansi.ColorFunc("yellow+b")
 
 func success(s string) {
 	fmt.Fprintf(os.Stderr, "%s %s\n", successize("Success:"), s)

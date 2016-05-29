@@ -28,7 +28,7 @@ func runCmd(c *CLI, ctx *cli.Context) {
 	re := remoteExec{
 		endpoint:      endpoint,
 		enableTty:     true,
-		httpClient:    c.GetHttpClient(ctx),
+		httpClient:    c.GetHTTPClient(ctx),
 		tlsConfig:     c.GetTLSConfig(ctx),
 		showAttaching: true,
 	}

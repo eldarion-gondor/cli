@@ -21,23 +21,27 @@ import (
 
 const configFilename = "gondor.yml"
 
+// ErrConfigNotFound is @@@
 type ErrConfigNotFound struct{}
 
 func (err ErrConfigNotFound) Error() string {
 	return "gondor.yml does not exist"
 }
 
+// OAuth2Config is @@@
 type OAuth2Config struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 }
 
+// Identity is @@@
 type Identity struct {
 	Provider string       `json:"provider"`
 	Username string       `json:"username"`
 	OAuth2   OAuth2Config `json:"oauth2"`
 }
 
+// Cloud is @@@
 type Cloud struct {
 	Name           string                `json:"name"`
 	Identity       CloudIdentityProvider `json:"identity"`
@@ -45,6 +49,7 @@ type Cloud struct {
 	Clusters       []*Cluster            `json:"clusters"`
 }
 
+// GetClusterByName is @@@
 func (c *Cloud) GetClusterByName(name string) (*Cluster, error) {
 	var ret *Cluster
 	var found bool
@@ -58,11 +63,12 @@ func (c *Cloud) GetClusterByName(name string) (*Cluster, error) {
 		}
 	}
 	if !found {
-		return nil, fmt.Errorf("%q cluster not found.", name)
+		return nil, fmt.Errorf("%q cluster not found", name)
 	}
 	return ret, nil
 }
 
+// GetCurrentCluster is @@@
 func (c *Cloud) GetCurrentCluster() *Cluster {
 	var ret *Cluster
 	if c.Clusters != nil {
@@ -76,12 +82,14 @@ func (c *Cloud) GetCurrentCluster() *Cluster {
 	return ret
 }
 
+// CloudIdentityProvider is @@@
 type CloudIdentityProvider struct {
 	Type     string `json:"type"`
 	Location string `json:"location"`
 	ClientID string `json:"client-id"`
 }
 
+// Cluster is @@@
 type Cluster struct {
 	Name                     string `json:"name"`
 	Location                 string `json:"location"`
@@ -90,6 +98,7 @@ type Cluster struct {
 	InsecureSkipVerify       bool   `json:"insecure-skip-verify"`
 }
 
+// GetCertificateAuthority is @@@
 func (cluster *Cluster) GetCertificateAuthority() (*x509.Certificate, error) {
 	var caData []byte
 	if cluster.CertificateAuthority != "" {
@@ -106,6 +115,7 @@ func (cluster *Cluster) GetCertificateAuthority() (*x509.Certificate, error) {
 	return x509.ParseCertificate(caData)
 }
 
+// GlobalConfig is @@@
 type GlobalConfig struct {
 	Identities   []*Identity `json:"identities"`
 	CurrentCloud string      `json:"current-cloud"`
@@ -120,6 +130,7 @@ type GlobalConfig struct {
 	once   sync.Once
 }
 
+// GetCloudByName is @@@
 func (cfg *GlobalConfig) GetCloudByName(name string) (*Cloud, error) {
 	var ret *Cloud
 	var found bool
@@ -133,11 +144,12 @@ func (cfg *GlobalConfig) GetCloudByName(name string) (*Cloud, error) {
 		}
 	}
 	if !found {
-		return nil, fmt.Errorf("%q cloud not found.", name)
+		return nil, fmt.Errorf("%q cloud not found", name)
 	}
 	return ret, nil
 }
 
+// GetCurrentCloud is @@@
 func (cfg *GlobalConfig) GetCurrentCloud() *Cloud {
 	var ret *Cloud
 	if cfg.Clouds != nil {
@@ -151,6 +163,7 @@ func (cfg *GlobalConfig) GetCurrentCloud() *Cloud {
 	return ret
 }
 
+// LoadGlobalConfig is @@@
 func LoadGlobalConfig(c *CLI, ctx *cli.Context, root string) error {
 	var rerr error
 	if c.Config == nil {
@@ -288,6 +301,7 @@ func (p *clientConfigPersister) Persist(config *gondor.Config) error {
 	return nil
 }
 
+// GetClientConfig is @@@
 func (cfg *GlobalConfig) GetClientConfig() *gondor.Config {
 	config := gondor.Config{}
 	config.ID = cfg.Cloud.Identity.ClientID
@@ -302,6 +316,7 @@ func (cfg *GlobalConfig) GetClientConfig() *gondor.Config {
 	return &config
 }
 
+// SaveIdentities is @@@
 func (cfg *GlobalConfig) SaveIdentities() error {
 	c := struct {
 		Identities []*Identity `json:"identities,omitempty"`
@@ -322,15 +337,18 @@ func (cfg *GlobalConfig) SaveIdentities() error {
 	return nil
 }
 
+// DeployConfig is @@@
 type DeployConfig struct {
 	Services []string `yaml:"services"`
 }
 
+// VCSMetadata is @@@
 type VCSMetadata struct {
 	Branch string
 	Commit string
 }
 
+// SiteConfig is @@@
 type SiteConfig struct {
 	Cluster      string            `yaml:"cluster"`
 	Identifier   string            `yaml:"site"`
@@ -347,6 +365,7 @@ type SiteConfig struct {
 
 var siteCfg SiteConfig
 
+// FindSiteConfig is @@@
 func FindSiteConfig() (string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
@@ -355,6 +374,7 @@ func FindSiteConfig() (string, error) {
 	return filepath.Join(wd, "gondor.yml"), nil
 }
 
+// LoadSiteConfigFromFile is @@@
 func LoadSiteConfigFromFile(filename string, dst interface{}) error {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		return ErrConfigNotFound{}
@@ -370,6 +390,7 @@ func LoadSiteConfigFromFile(filename string, dst interface{}) error {
 	return nil
 }
 
+// LoadSiteConfig is @@@
 func LoadSiteConfig() error {
 	var rerr error
 	siteCfg.once.Do(func() {
@@ -410,6 +431,7 @@ func LoadSiteConfig() error {
 	return rerr
 }
 
+// MustLoadSiteConfig is @@@
 func MustLoadSiteConfig() {
 	if err := LoadSiteConfig(); err != nil {
 		fatal(err.Error())

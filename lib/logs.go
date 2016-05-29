@@ -9,8 +9,8 @@ import (
 	"github.com/urfave/cli"
 )
 
-var blue func(string) string = ansi.ColorFunc("blue+b")
-var red func(string) string = ansi.ColorFunc("red+b")
+var blue = ansi.ColorFunc("blue+b")
+var red = ansi.ColorFunc("red+b")
 
 func logsCmd(c *CLI, ctx *cli.Context) {
 	var err error

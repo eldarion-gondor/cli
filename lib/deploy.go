@@ -115,7 +115,7 @@ func deployCmd(c *CLI, ctx *cli.Context) {
 	re := remoteExec{
 		endpoint:   endpoint,
 		enableTty:  false,
-		httpClient: c.GetHttpClient(ctx),
+		httpClient: c.GetHTTPClient(ctx),
 		tlsConfig:  c.GetTLSConfig(ctx),
 		callback: func(err error) {
 			if err != nil {

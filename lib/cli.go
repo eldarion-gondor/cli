@@ -19,11 +19,13 @@ import (
 	"github.com/urfave/cli"
 )
 
-type versionInfo struct {
+// VersionInfo is @@@
+type VersionInfo struct {
 	Version     string
 	DownloadURL string
 }
 
+// CLI is a single representation of the command line
 type CLI struct {
 	Name         string
 	LongName     string
@@ -38,6 +40,7 @@ type CLI struct {
 	api *gondor.Client
 }
 
+// Prepare is @@@
 func (c *CLI) Prepare() {
 	if c.Usage == "" {
 		c.Usage = fmt.Sprintf("command-line tool for interacting with the %s", c.LongName)
@@ -79,6 +82,7 @@ func (c *CLI) stdCmd(cmdFunc func(*CLI, *cli.Context)) func(*CLI, *cli.Context) 
 	}
 }
 
+// Run is @@@
 func (c *CLI) Run() {
 	app := cli.NewApp()
 	app.Name = c.Name
@@ -805,22 +809,27 @@ func (c *CLI) Run() {
 	app.Run(os.Args)
 }
 
+// IsAuthenticated is @@@
 func (c *CLI) IsAuthenticated() bool {
 	return c.Config.loaded && c.Config.Identity != nil
 }
 
+// SetCloud is @@@
 func (c *CLI) SetCloud(cloud *Cloud) {
 	c.Config.Cloud = cloud
 }
 
+// SetCluster is @@@
 func (c *CLI) SetCluster(cluster *Cluster) {
 	c.Config.Cluster = cluster
 }
 
+// SetIdentity is @@@
 func (c *CLI) SetIdentity(identity *Identity) {
 	c.Config.Identity = identity
 }
 
+// GetAPIClient is @@@
 func (c *CLI) GetAPIClient(ctx *cli.Context) *gondor.Client {
 	if c.api == nil {
 		LoadSiteConfig()
@@ -847,7 +856,7 @@ func (c *CLI) GetAPIClient(ctx *cli.Context) *gondor.Client {
 				c.SetCluster(cluster)
 			}
 		}
-		httpClient := c.GetHttpClient(ctx)
+		httpClient := c.GetHTTPClient(ctx)
 		c.api = gondor.NewClient(c.Config.GetClientConfig(), httpClient)
 		if ctx.GlobalBool("log-http") {
 			c.api.EnableHTTPLogging(true)
@@ -857,6 +866,7 @@ func (c *CLI) GetAPIClient(ctx *cli.Context) *gondor.Client {
 	return c.api
 }
 
+// GetTLSConfig is @@@
 func (c *CLI) GetTLSConfig(ctx *cli.Context) *tls.Config {
 	var pool *x509.CertPool
 	caCert, err := c.Config.Cluster.GetCertificateAuthority()
@@ -874,7 +884,8 @@ func (c *CLI) GetTLSConfig(ctx *cli.Context) *tls.Config {
 	}
 }
 
-func (c *CLI) GetHttpClient(ctx *cli.Context) *http.Client {
+// GetHTTPClient is @@@
+func (c *CLI) GetHTTPClient(ctx *cli.Context) *http.Client {
 	tr := &http.Transport{
 		TLSClientConfig: c.GetTLSConfig(ctx),
 	}
@@ -913,7 +924,8 @@ func (c *CLI) checkVersion() {
 	}
 }
 
-func (c *CLI) CheckForUpgrade() (*versionInfo, error) {
+// CheckForUpgrade is @@@
+func (c *CLI) CheckForUpgrade() (*VersionInfo, error) {
 	req, err := http.NewRequest("GET", "https://api.us2.gondor.io/v2/client/", nil)
 	if err != nil {
 		return nil, err
@@ -923,17 +935,17 @@ func (c *CLI) CheckForUpgrade() (*versionInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	var versionJson interface{}
-	err = json.NewDecoder(resp.Body).Decode(&versionJson)
+	var versionJSON interface{}
+	err = json.NewDecoder(resp.Body).Decode(&versionJSON)
 	if err != nil {
 		return nil, err
 	}
-	newVersion := versionJson.(map[string]interface{})["version"].(string)
-	downloadUrl := versionJson.(map[string]interface{})["download_url"].(map[string]interface{})[runtime.GOOS].(map[string]interface{})[runtime.GOARCH].(string)
+	newVersion := versionJSON.(map[string]interface{})["version"].(string)
+	downloadURL := versionJSON.(map[string]interface{})["download_url"].(map[string]interface{})[runtime.GOOS].(map[string]interface{})[runtime.GOARCH].(string)
 	if newVersion != c.Version {
-		return &versionInfo{
+		return &VersionInfo{
 			newVersion,
-			downloadUrl,
+			downloadURL,
 		}, nil
 	}
 	return nil, nil
@@ -950,6 +962,7 @@ func parseSiteIdentifier(value string) (string, string) {
 	return parts[0], parts[1]
 }
 
+// GetResourceGroup is @@@
 func (c *CLI) GetResourceGroup(ctx *cli.Context) *gondor.ResourceGroup {
 	api := c.GetAPIClient(ctx)
 	if ctx.GlobalString("resource-group") != "" {
@@ -979,6 +992,7 @@ func (c *CLI) GetResourceGroup(ctx *cli.Context) *gondor.ResourceGroup {
 	return user.ResourceGroup
 }
 
+// GetSite is @@@
 func (c *CLI) GetSite(ctx *cli.Context) *gondor.Site {
 	var err error
 	var siteName string
@@ -1009,6 +1023,7 @@ func (c *CLI) GetSite(ctx *cli.Context) *gondor.Site {
 	return site
 }
 
+// GetInstance is @@@
 func (c *CLI) GetInstance(ctx *cli.Context, site *gondor.Site) *gondor.Instance {
 	api := c.GetAPIClient(ctx)
 	if site == nil {
