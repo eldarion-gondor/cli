@@ -23,7 +23,7 @@ func upgradeCmd(c *CLI, ctx *cli.Context) {
 			fatal(err.Error())
 		}
 		defer resp.Body.Close()
-		err := update.Apply(resp.Body, update.Options{})
+		err = update.Apply(resp.Body, update.Options{})
 		if err != nil {
 			fatal(err.Error())
 		}
