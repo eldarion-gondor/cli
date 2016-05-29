@@ -13,8 +13,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/codegangsta/cli"
 	"github.com/eldarion-gondor/gondor-go/lib"
+	"github.com/urfave/cli"
 
 	"gopkg.in/yaml.v2"
 )

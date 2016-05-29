@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/codegangsta/cli"
 	"github.com/inconshreveable/go-update"
+	"github.com/urfave/cli"
 )
 
 func upgradeCmd(c *CLI, ctx *cli.Context) {

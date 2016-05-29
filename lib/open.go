@@ -3,8 +3,8 @@ package gondorcli
 import (
 	"fmt"
 
-	"github.com/codegangsta/cli"
 	"github.com/skratchdot/open-golang/open"
+	"github.com/urfave/cli"
 )
 
 func openCmd(c *CLI, ctx *cli.Context) {

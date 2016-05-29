@@ -13,10 +13,10 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
-	"github.com/codegangsta/cli"
 	"github.com/eldarion-gondor/gondor-go/lib"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pivotal-golang/bytefmt"
+	"github.com/urfave/cli"
 )
 
 type versionInfo struct {

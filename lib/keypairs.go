@@ -5,9 +5,9 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/codegangsta/cli"
 	"github.com/eldarion-gondor/gondor-go/lib"
 	"github.com/olekukonko/tablewriter"
+	"github.com/urfave/cli"
 )
 
 func keypairsListCmd(c *CLI, ctx *cli.Context) {

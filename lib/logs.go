@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/codegangsta/cli"
 	"github.com/eldarion-gondor/gondor-go/lib"
 	"github.com/mgutz/ansi"
+	"github.com/urfave/cli"
 )
 
 var blue func(string) string = ansi.ColorFunc("blue+b")

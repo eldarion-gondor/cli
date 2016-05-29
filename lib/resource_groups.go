@@ -3,8 +3,8 @@ package gondorcli
 import (
 	"os"
 
-	"github.com/codegangsta/cli"
 	"github.com/olekukonko/tablewriter"
+	"github.com/urfave/cli"
 )
 
 func resourceGroupListCmd(c *CLI, ctx *cli.Context) {

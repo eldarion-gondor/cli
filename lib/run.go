@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 )
 
 func runCmd(c *CLI, ctx *cli.Context) {

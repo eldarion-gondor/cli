@@ -1,5 +1,5 @@
-hash: 0e5a837f0b6accd60ab69e9e3e02a89da98b1e012e9dc5c7f701398a50765971
-updated: 2016-05-29T12:54:10.989931083-06:00
+hash: 001bc5ce40ffeff35b9e5b5c029f22e35e7919cae5cafffb8b3a1f6d816b658a
+updated: 2016-05-29T13:13:37.037020602-06:00
 imports:
 - name: github.com/bgentry/speakeasy
   version: e1439544d8ecd0f3e9373a636d447668096a8f81
@@ -10,7 +10,7 @@ imports:
   subpackages:
   - lib
 - name: github.com/eldarion-gondor/piper
-  version: 18d30ae04448dde1f950359433a2886736a7c915
+  version: 8bf560e937b208e11e13ea601a67dbb77de42afc
 - name: github.com/flynn/flynn
   version: 5ac49d950520b0a70dad575451b2fd546ef0811f
   subpackages:
@@ -40,6 +40,8 @@ imports:
   - open
 - name: github.com/tj/go-spin
   version: 866762925be273d8db6a8b816f359ca41d61bcdb
+- name: github.com/urfave/cli
+  version: 9a18ffad6c548ca4d458d4c30a8aa4d181cf92fa
 - name: golang.org/x/crypto
   version: 5bcd134fee4dd1475da17714aac19c0aa0142e2f
   subpackages:

@@ -9,9 +9,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/codegangsta/cli"
 	"github.com/eldarion-gondor/gondor-go/lib"
 	"github.com/pivotal-golang/bytefmt"
+	"github.com/urfave/cli"
 )
 
 func deployCmd(c *CLI, ctx *cli.Context) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/bgentry/speakeasy"
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 )
 
 func loginCmd(c *CLI, ctx *cli.Context) {

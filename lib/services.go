@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/codegangsta/cli"
 	"github.com/eldarion-gondor/gondor-go/lib"
 	"github.com/olekukonko/tablewriter"
+	"github.com/urfave/cli"
 )
 
 func servicesCreateCmd(c *CLI, ctx *cli.Context) {
