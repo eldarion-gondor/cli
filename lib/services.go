@@ -236,7 +236,11 @@ func servicesConfigSetCmd(c *CLI, ctx *cli.Context) {
 			changedService.Image = &value
 			changed = true
 		}
-		break
+	case "size":
+		if *service.Size != value {
+			changedService.Size = &value
+			changed = true
+		}
 	default:
 		fatal(fmt.Sprintf("unknown service attribute %q", attribute))
 	}
