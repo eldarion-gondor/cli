@@ -1,10 +1,10 @@
 hash: 7076bc2f9087dc08259cdbeb7edcf27574f2d88002ccb83ec5dfcec1a55fd17f
-updated: 2016-06-04T12:28:29.775694583-06:00
+updated: 2016-06-04T13:58:09.935461118-06:00
 imports:
 - name: github.com/bgentry/speakeasy
   version: e1439544d8ecd0f3e9373a636d447668096a8f81
 - name: github.com/eldarion-gondor/gondor-go
-  version: 91afe69e5c9ea4364a8f7fe884260cbf0f1af420
+  version: 93a0643d6a7b7c641dbce4e54bd1b172fd5f2cdf
   subpackages:
   - lib
 - name: github.com/flynn/flynn
