@@ -45,7 +45,7 @@ func servicesListCmd(c *CLI, ctx *cli.Context) {
 		fatal(err.Error())
 	}
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Name", "Kind", "Replicas", "Web URL", "State"})
+	table.SetHeader([]string{"Name", "Kind", "Size", "Replicas", "Web URL", "State"})
 	for i := range services {
 		service := services[i]
 		var webURL string
@@ -55,6 +55,7 @@ func servicesListCmd(c *CLI, ctx *cli.Context) {
 		table.Append([]string{
 			*service.Name,
 			*service.Kind,
+			*service.Size,
 			strconv.Itoa(*service.Replicas),
 			webURL,
 			*service.State,
@@ -197,7 +198,8 @@ func servicesConfigGetCmd(c *CLI, ctx *cli.Context) {
 	switch attribute {
 	case "image":
 		fmt.Println(*service.Image)
-		break
+	case "size":
+		fmt.Println(*service.Size)
 	default:
 		fatal(fmt.Sprintf("unknown service attribute %q", attribute))
 	}
