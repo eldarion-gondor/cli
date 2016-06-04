@@ -1,5 +1,5 @@
-hash: 001bc5ce40ffeff35b9e5b5c029f22e35e7919cae5cafffb8b3a1f6d816b658a
-updated: 2016-05-29T14:44:47.123375408-06:00
+hash: 7076bc2f9087dc08259cdbeb7edcf27574f2d88002ccb83ec5dfcec1a55fd17f
+updated: 2016-06-04T12:28:29.775694583-06:00
 imports:
 - name: github.com/bgentry/speakeasy
   version: e1439544d8ecd0f3e9373a636d447668096a8f81
@@ -7,21 +7,15 @@ imports:
   version: 91afe69e5c9ea4364a8f7fe884260cbf0f1af420
   subpackages:
   - lib
-- name: github.com/eldarion-gondor/piper
-  version: 8bf560e937b208e11e13ea601a67dbb77de42afc
 - name: github.com/flynn/flynn
-  version: 5ac49d950520b0a70dad575451b2fd546ef0811f
+  version: dadac3a519bdbab8752699e180e4226741c4e321
   subpackages:
   - pkg/attempt
-- name: github.com/gorilla/websocket
-  version: afffb151969cb38ce452b0e1b8d20cd91fe7cd45
 - name: github.com/inconshreveable/go-update
   version: 8152e7eb6ccf8679a64582a66b78519688d156ad
   subpackages:
   - internal/binarydist
   - internal/osext
-- name: github.com/kr/pty
-  version: 0467868096dbfab4b683e41dd7aaba1c12363233
 - name: github.com/mattn/go-runewidth
   version: d6bea18f789704b5f83375793155289da36a3c7f
 - name: github.com/mgutz/ansi
@@ -39,11 +33,15 @@ imports:
 - name: github.com/tj/go-spin
   version: 866762925be273d8db6a8b816f359ca41d61bcdb
 - name: github.com/urfave/cli
-  version: 9a18ffad6c548ca4d458d4c30a8aa4d181cf92fa
+  version: edb24d02aa3cea2319c33f2836d4a5133907fe4c
 - name: golang.org/x/crypto
   version: 5bcd134fee4dd1475da17714aac19c0aa0142e2f
   subpackages:
   - ssh/terminal
+- name: golang.org/x/net
+  version: c4c3ea71919de159c9e246d7be66deb7f0a39a58
+  subpackages:
+  - websocket
 - name: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 devImports: []
