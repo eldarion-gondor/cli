@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,6 +126,7 @@ func deployCmd(c *CLI, ctx *cli.Context) {
 			}
 			fmt.Println("ok")
 		},
+		logger: log.New(ioutil.Discard, "", log.LstdFlags),
 	}
 	fmt.Printf("-----> Attaching to build process... ")
 	if exitCode := re.execute(); exitCode > 0 {

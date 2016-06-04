@@ -2,6 +2,8 @@ package gondorcli
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 
 	"github.com/urfave/cli"
@@ -31,6 +33,7 @@ func runCmd(c *CLI, ctx *cli.Context) {
 		httpClient:    c.GetHTTPClient(ctx),
 		tlsConfig:     c.GetTLSConfig(ctx),
 		showAttaching: true,
+		logger:        log.New(ioutil.Discard, "", log.LstdFlags),
 	}
 	os.Exit(re.execute())
 }
